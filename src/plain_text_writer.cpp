@@ -381,22 +381,29 @@ struct PlainTextWriter::Implementation
             open_table_tags--;
         }
         while (open_table_tags > 0);
+        if (table.empty())
+          throw LogicError("Table inside table without rows.");
+         if (table.back().empty())
+          throw LogicError("Table inside table row without cells.");
         table.back().back().write(ss.str());
       }
+
       else if (std::holds_alternative<tag::TableRow>(tags[i]))
       {
         table.push_back({});
       }
       else if (std::holds_alternative<tag::TableCell>(tags[i]))
       {
+        if (table.empty())
+          throw LogicError("Cell inside table without rows.");
         table.back().push_back(Cell());
       }
       else if (!std::holds_alternative<tag::CloseTableRow>(tags[i]) && !std::holds_alternative<tag::CloseTableCell>(tags[i]))
       {
         if (table.empty())
-          throw LogicError("Cell content in table without rows.");
+          throw LogicError("Cell content inside table without rows.");
          if (table.back().empty())
-          throw LogicError("Cell content in table row without cells.");
+          throw LogicError("Cell content inside table row without cells.");
         table.back().back().write(tags[i]);
       }
     }
@@ -455,7 +462,8 @@ struct PlainTextWriter::Implementation
           [this](const tag::Footer& tag){return write_footer(tag);},
           [this](const tag::CloseFooter& tag){return write_close_footer(tag);},
           [this](const tag::Comment& tag){return write_comment(tag);},
-          [this](const tag::CloseDocument& tag){return write_close_document(tag);},
+          [this](const tag::Document& tag) { m_nested_docs_counter++; return std::shared_ptr<TextElement>(); },
+          [this](const tag::CloseDocument& tag) { m_nested_docs_counter--; return m_nested_docs_counter == 0 ? write_close_document(tag) : std::shared_ptr<TextElement>(); },
           [](const auto&) {return std::shared_ptr<TextElement>{};}
         },
 	      tag
@@ -476,6 +484,7 @@ struct PlainTextWriter::Implementation
   std::stringstream footer_stream;
   std::vector<std::vector<Cell>> table;
   std::string footer;
+  int m_nested_docs_counter { 0 };
 };
 
 PlainTextWriter::PlainTextWriter()
@@ -521,12 +530,6 @@ void
 PlainTextWriter::write_to(const Tag& tag, std::ostream &stream)
 {
   impl->write_to(tag, stream);
-}
-
-Writer*
-PlainTextWriter::clone() const
-{
-  return new PlainTextWriter();
 }
 
 } // namespace docwire
