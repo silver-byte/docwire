@@ -101,6 +101,7 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
 	template <typename T>
 	continuation emit_message(T&& object) const
 	{
+		log_scope(m_context_stack.top().stop_emit_signals);
 		if (!m_context_stack.top().stop_emit_signals || std::is_same_v<std::decay_t<T>, std::exception_ptr>)
 			return m_context_stack.top().emit_message(std::forward<T>(object));
 		else
@@ -210,6 +211,7 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
     if (m_context_stack.top().m_disabled_text == false && xml_stream.name() == "#text")
     {
       std::string content = xml_stream.content();
+	  log_entry(content);
 	  text += content;
       children_processed = true;
       if (m_context_stack.top().space_preserve || !std::all_of(content.begin(), content.end(), [](auto c){return isspace(static_cast<unsigned char>(c));}))
@@ -299,9 +301,12 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
 								bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
 		log_scope();
-		if (m_context_stack.top().m_disabled_text == false && xml_stream.name() == "#text")
+		// By default, children_processed is false, allowing the main loop to descend into children.
+		// This is the desired behavior for unknown wrapper tags.
+		// We only need to override this for non-element nodes (like comments or processing instructions)
+		// that cannot have children, to prevent the parser from attempting to descend.
+		if (!xml_stream.isElement())
 		{
-			text += xml_stream.content();
 			children_processed = true;
 		}
 	}
@@ -594,6 +599,7 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
 
 void CommonXMLDocumentParser::activeEmittingSignals(bool flag)
 {
+	log_scope(flag);
 	impl().m_context_stack.top().stop_emit_signals = !flag;
 }
 

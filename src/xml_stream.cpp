@@ -303,4 +303,10 @@ std::string XmlStream::attribute(const std::string& attr_name)
 	return s;
 }
 
+bool XmlStream::isElement()
+{
+	log_scope();
+	return xmlTextReaderNodeType(impl().m_reader.get()) == XML_READER_TYPE_ELEMENT;
+}
+
 }; // namespace docwire

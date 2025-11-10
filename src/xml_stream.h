@@ -33,6 +33,7 @@ class DOCWIRE_XML_EXPORT XmlStream : public with_pimpl<XmlStream>
 		std::string fullName();
 		std::string stringValue();
 		std::string attribute(const std::string& attr_name);
+		bool isElement();
 };
 
 }; // namespace docwire
