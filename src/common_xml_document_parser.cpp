@@ -91,6 +91,7 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
 	m_command_handlers["line-break"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFLineBreak);
 	m_command_handlers["h"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFHeading);
 	m_command_handlers["object"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFObject);
+	m_command_handlers["fldData"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onOOXMLFldData);
   }
 
 	std::map<std::string, CommonXMLDocumentParser::CommandHandler> m_command_handlers;
@@ -581,6 +582,14 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
 			}
 			text += object_text;
 		}
+
+	void onOOXMLFldData(XmlStream& xml_stream, XmlParseMode mode,
+								ZipReader* zipfile, std::string& text,
+								bool& children_processed, std::string& level_suffix, bool first_on_level)
+	{
+		log_scope();
+		children_processed = true;
+	}
 };
 
 void CommonXMLDocumentParser::activeEmittingSignals(bool flag)
