@@ -73,9 +73,9 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
     m_command_handlers["rPr"] = add_command_handler<>(&pimpl_impl::onrPr);
     m_command_handlers["pPr"] = add_command_handler<>(&pimpl_impl::onpPr);
     m_command_handlers["r"] = add_command_handler<>(&pimpl_impl::onR);
-    m_command_handlers["tbl"] = add_command_handler<>(&pimpl_impl::onOOXMLTable);
-    m_command_handlers["tr"] = add_command_handler<>(&pimpl_impl::onOOXMLTableRow);
-    m_command_handlers["tc"] = add_command_handler<>(&pimpl_impl::onODFOOXMLTableColumn);
+    m_command_handlers["tbl"] = add_command_handler<>(&pimpl_impl::onODFOOXMLTable);
+    m_command_handlers["tr"] = add_command_handler<>(&pimpl_impl::onODFOOXMLTableRow);
+    m_command_handlers["tc"] = add_command_handler<>(&pimpl_impl::onODFOOXMLTableCell);
     m_command_handlers["t"] = add_command_handler<>(&pimpl_impl::onODFOOXMLTextTag);
 	m_command_handlers["text"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFText);
 	m_command_handlers["tab"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFOOXMLTab);
@@ -84,9 +84,9 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
 	m_command_handlers["a"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFUrl);
 	m_command_handlers["list-style"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFOOXMLListStyle);
 	m_command_handlers["list"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFOOXMLList);
-	m_command_handlers["table"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFTable);
-	m_command_handlers["table-row"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFTableRow);
-	m_command_handlers["table-cell"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFTableCell);
+	m_command_handlers["table"] = add_command_handler<>(&pimpl_impl::onODFOOXMLTable);
+	m_command_handlers["table-row"] = add_command_handler<>(&pimpl_impl::onODFOOXMLTableRow);
+	m_command_handlers["table-cell"] = add_command_handler<>(&pimpl_impl::onODFOOXMLTableCell);
 	m_command_handlers["annotation"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFAnnotation);
 	m_command_handlers["line-break"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFLineBreak);
 	m_command_handlers["h"] = add_command_handler<>(&pimpl_impl<CommonXMLDocumentParser>::onODFHeading);
@@ -219,9 +219,9 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
     }
   }
 
-  void onOOXMLTable(XmlStream& xml_stream, XmlParseMode mode,
-                      ZipReader* zipfile, std::string& text,
-                      bool& children_processed, std::string& level_suffix, bool first_on_level)
+  void onODFOOXMLTable(XmlStream& xml_stream, XmlParseMode mode,
+                 ZipReader* zipfile, std::string& text,
+                 bool& children_processed, std::string& level_suffix, bool first_on_level)
   {
 	log_scope();
     reset_format();
@@ -233,7 +233,7 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
     emit_message(document::CloseTable{});
   }
 
-  void onOOXMLTableRow(XmlStream& xml_stream, XmlParseMode mode,
+  void onODFOOXMLTableRow(XmlStream& xml_stream, XmlParseMode mode,
                        ZipReader* zipfile, std::string& text,
                        bool& children_processed, std::string& level_suffix, bool first_on_level)
   {
@@ -247,7 +247,7 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
     emit_message(document::CloseTableRow{});
   }
 
-  void onODFOOXMLTableColumn(XmlStream& xml_stream, XmlParseMode mode,
+  void onODFOOXMLTableCell(XmlStream& xml_stream, XmlParseMode mode,
                        ZipReader* zipfile, std::string& text,
                        bool& children_processed, std::string& level_suffix, bool first_on_level)
   {
@@ -454,60 +454,6 @@ struct pimpl_impl<CommonXMLDocumentParser> : with_pimpl_owner<CommonXMLDocumentP
 			else
 				text += formatList(list_vector);
 			children_processed = true;
-		}
-
-	void onODFTable(XmlStream& xml_stream, XmlParseMode mode,
-									ZipReader* zipfile, std::string& text,
-									bool& children_processed, std::string& level_suffix, bool first_on_level)
-		{
-			log_scope();
-			svector cell_vector;
-			std::vector<svector> row_vector;
-			emit_message(document::Table{});
-			xml_stream.levelDown();
-			while (xml_stream)
-			{
-				if (xml_stream.name() == "table-row")
-				{
-					xml_stream.levelDown();
-					cell_vector.clear(); 
-					emit_message(document::TableRow{});
-					while (xml_stream)
-					{
-						if (xml_stream.name() == "table-cell")
-						{
-							emit_message(document::TableCell{});
-							xml_stream.levelDown();
-							cell_vector.push_back(owner().parseXmlData(xml_stream, mode, zipfile));
-							xml_stream.levelUp();
-							emit_message(document::CloseTableCell{});
-						}
-						xml_stream.next();
-					}
-					row_vector.push_back(cell_vector);
-					xml_stream.levelUp();
-					emit_message(document::CloseTableRow{});
-				}
-				xml_stream.next();
-			}
-			xml_stream.levelUp();
-			emit_message(document::CloseTable{});
-			text += formatTable(row_vector);
-			children_processed = true;
-		}
-
-		void onODFTableRow(XmlStream& xml_stream, XmlParseMode mode,
-									   const ZipReader* zipfile, std::string& text,
-									   bool& children_processed, std::string& level_suffix, bool first_on_level)
-		{
-			log_scope();
-		}
-
-		void onODFTableCell(XmlStream& xml_stream, XmlParseMode mode,
-								   const ZipReader* zipfile, std::string& text,
-								   bool& children_processed, std::string& level_suffix, bool first_on_level)
-		{
-			log_scope();
 		}
 
 	void onODFAnnotation(XmlStream& xml_stream, XmlParseMode mode,
