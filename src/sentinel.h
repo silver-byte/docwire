@@ -9,24 +9,16 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_PARSER_H
-#define DOCWIRE_XML_PARSER_H
+#ifndef DOCWIRE_SENTINEL_H
+#define DOCWIRE_SENTINEL_H
 
-#include "safety_policy.h"
-#include "chain_element.h"
-#include "xml_export.h"
+#include "core_export.h"
 
 namespace docwire
 {
 
-template <safety_policy safety_level = default_safety_level>
-class DOCWIRE_XML_EXPORT XMLParser : public ChainElement
-{
-public:
-	continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
-	bool is_leaf() const override { return false; }
-};
+struct DOCWIRE_CORE_EXPORT sentinel {};
 
 } // namespace docwire
 
-#endif // DOCWIRE_XML_PARSER_H
+#endif // DOCWIRE_SENTINEL_H

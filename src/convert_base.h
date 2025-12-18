@@ -9,24 +9,52 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_PARSER_H
-#define DOCWIRE_XML_PARSER_H
+#ifndef DOCWIRE_CONVERT_BASE_H
+#define DOCWIRE_CONVERT_BASE_H
 
-#include "safety_policy.h"
-#include "chain_element.h"
-#include "xml_export.h"
+#include <optional>
+#include "error_tags.h"
+#include "throw_if.h"
 
-namespace docwire
+namespace docwire::convert
 {
 
-template <safety_policy safety_level = default_safety_level>
-class DOCWIRE_XML_EXPORT XMLParser : public ChainElement
+template<typename T>
+struct dest_type_tag {};
+
+namespace detail
 {
-public:
-	continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
-	bool is_leaf() const override { return false; }
+
+struct convert_cpo
+{
+    template<typename To, typename From>
+    requires requires(const From& from) { { convert_impl(from, dest_type_tag<To>{}) } noexcept; }
+    constexpr std::optional<To> operator()(const From& from) const noexcept
+    {
+        return convert_impl(from, dest_type_tag<To>{});
+    }
 };
 
-} // namespace docwire
+inline constexpr convert_cpo convert_cpo;
 
-#endif // DOCWIRE_XML_PARSER_H
+} // namespace detail
+
+template<typename To, typename From>
+requires requires(const From& from) { detail::convert_cpo.template operator()<To, From>(from); }
+constexpr std::optional<To> try_to(const From& from) noexcept
+{
+	return detail::convert_cpo.template operator()<To, From>(from);
+}
+
+template<typename To, typename From>
+requires requires(const From& from) { try_to<To>(from); }
+To to(const From& from)
+{
+	auto result = try_to<To>(from);
+	throw_if(!result.has_value(), "Failed to convert value", from, errors::uninterpretable_data{});
+	return *result;
+}
+
+} // namespace docwire::convert
+
+#endif // DOCWIRE_CONVERT_BASE_H

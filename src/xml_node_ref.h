@@ -9,24 +9,35 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_PARSER_H
-#define DOCWIRE_XML_PARSER_H
+#ifndef DOCWIRE_XML_NODE_REF_H
+#define DOCWIRE_XML_NODE_REF_H
 
-#include "safety_policy.h"
-#include "chain_element.h"
-#include "xml_export.h"
+#include <memory>
+#include "xml_iterator_state.h"
+#include "not_null.h"
+#include "ranged.h"
 
-namespace docwire
+namespace docwire::xml
 {
 
 template <safety_policy safety_level = default_safety_level>
-class DOCWIRE_XML_EXPORT XMLParser : public ChainElement
+class node_ref
 {
 public:
-	continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
-	bool is_leaf() const override { return false; }
+    explicit node_ref(not_null<std::shared_ptr<iterator_state<safety_level>>, safety_level> state)
+        : m_state(std::move(state)) {}
+    std::string_view name() const { return m_state->xml_reader.name(); }
+    std::string_view full_name() const { return m_state->xml_reader.full_name(); }
+    std::string_view content() const { return m_state->xml_reader.content(); }
+    std::string_view string_value() const { return m_state->xml_reader.string_value(); }
+    non_negative<int, safety_level> depth() const { return m_state->xml_reader.depth(); }
+    node_type type() const { return m_state->xml_reader.type(); }
+    const not_null<std::shared_ptr<iterator_state<safety_level>>, safety_level>& state() const { return m_state; }
+
+private:
+    not_null<std::shared_ptr<iterator_state<safety_level>>, safety_level> m_state;
 };
 
-} // namespace docwire
+}
 
-#endif // DOCWIRE_XML_PARSER_H
+#endif

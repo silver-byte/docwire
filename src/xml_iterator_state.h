@@ -9,33 +9,33 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_STREAM_H
-#define DOCWIRE_XML_STREAM_H
+#ifndef DOCWIRE_XML_ITERATOR_STATE_H
+#define DOCWIRE_XML_ITERATOR_STATE_H
 
-#include "pimpl.h"
-#include <string>
-#include "xml_export.h"
+#include "xml_reader.h"
 
-namespace docwire
+namespace docwire::xml
 {
-class DOCWIRE_XML_EXPORT XmlStream : public with_pimpl<XmlStream>
-{
-	public:
-		struct no_blanks { bool v = false; };
 
-		XmlStream(const std::string& xml, no_blanks no_blanks = {false});
-		operator bool();
-		void next();
-		void levelDown();
-		void levelUp();
-		std::string content();
-		std::string name();
-		std::string fullName();
-		std::string stringValue();
-		std::string attribute(const std::string& attr_name);
-		bool isElement();
+template <safety_policy safety_level>
+struct iterator_state
+{
+	explicit iterator_state(reader<safety_level>& reader) : xml_reader(reader) {}
+	reader<safety_level>& xml_reader;
+
+	/**
+	 * @brief A shared flag indicating that the reader has been advanced one step ahead.
+	 *
+	 * This is a crucial part of the shared state for coordinating multiple iterators
+	 * operating on the single underlying xml::reader cursor.
+	 * When an iterator (like descendants_view::iterator) needs to "peek ahead" to check
+	 * a stopping condition, it advances the reader and sets this flag. The next iterator
+	 * to be incremented must check this flag, consume the current node without advancing
+	 * the reader again, and then clear the flag. It MUST be part of the shared state.
+	 */
+	bool m_node_ahead_flag = false;
 };
 
-}; // namespace docwire
+}
 
 #endif

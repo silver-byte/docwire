@@ -11,6 +11,7 @@
 
 #include "rtf_parser.h"
 
+#include "convert.h"
 #include "document_elements.h"
 #include "data_stream.h"
 #include "data_source.h"
@@ -546,7 +547,7 @@ void execCommand(DataStream& data_stream, UString& text, int& skip, RTFParserSta
 				s += ch;
 			if (!data_stream.eof())
 				data_stream.unGetc(ch);
-			parse_dttm_time(str_to_int(s), state.annotation_time);
+			parse_dttm_time(convert::to<int>(s), state.annotation_time);
 			break;
 		}
 		case RTF_ATNAUTHOR:

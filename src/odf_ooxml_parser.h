@@ -15,15 +15,29 @@
 #include "common_xml_document_parser.h"
 #include "data_source.h"
 #include "odf_ooxml_export.h"
+#include "safety_policy.h"
 
 namespace docwire
 {
 
-class DOCWIRE_ODF_OOXML_EXPORT ODFOOXMLParser : public CommonXMLDocumentParser, public with_pimpl<ODFOOXMLParser>
+template <safety_policy safety_level = default_safety_level>
+class DOCWIRE_ODF_OOXML_EXPORT ODFOOXMLParser : public CommonXMLDocumentParser<safety_level>, public with_pimpl<ODFOOXMLParser<safety_level>>
 {
-  private:
-    using with_pimpl<ODFOOXMLParser>::impl;
-    friend pimpl_impl<ODFOOXMLParser>;
+    using base_type = CommonXMLDocumentParser<safety_level>;
+    using with_pimpl<ODFOOXMLParser<safety_level>>::impl;
+    friend pimpl_impl<ODFOOXMLParser<safety_level>>;
+
+    using base_type::registerODFOOXMLCommandHandler;
+    using base_type::blanks;
+    using base_type::set_blanks;
+    using base_type::extractText;
+    using base_type::parseODFMetadata;
+    using base_type::parseXmlChildren;
+    using base_type::getSharedStrings;
+    using base_type::activeEmittingSignals;
+    using SharedString = base_type::SharedString;
+    using scoped_context_stack_push = base_type::scoped_context_stack_push;
+
     class CommandHandlersSet;
     int lastOOXMLRowNum();
     void setLastOOXMLRowNum(int r);

@@ -9,24 +9,27 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_PARSER_H
-#define DOCWIRE_XML_PARSER_H
+#ifndef DOCWIRE_XML_ROOT_ELEMENT_H
+#define DOCWIRE_XML_ROOT_ELEMENT_H
 
-#include "safety_policy.h"
-#include "chain_element.h"
-#include "xml_export.h"
+#include "xml_children.h"
+#include "xml_node_ref.h"
+#include "make_error.h"
 
-namespace docwire
+namespace docwire::xml
 {
 
-template <safety_policy safety_level = default_safety_level>
-class DOCWIRE_XML_EXPORT XMLParser : public ChainElement
+template <safety_policy safety_level>
+node_ref<safety_level> root_element(reader<safety_level>& reader)
 {
-public:
-	continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
-	bool is_leaf() const override { return false; }
-};
+    for (auto node: children(reader))
+    {
+        if (node.type() == node_type::element)
+            return node;
+    }
+    throw DOCWIRE_MAKE_ERROR("No root element found");
+}
 
-} // namespace docwire
+}
 
-#endif // DOCWIRE_XML_PARSER_H
+#endif // DOCWIRE_XML_ROOT_ELEMENT_H

@@ -15,7 +15,7 @@
 #include "attributes.h"
 #include "chain_element.h"
 #include "pimpl.h"
-#include "xml_stream.h"
+#include "xml_children.h"
 #include <string>
 #include <vector>
 #include <map>
@@ -34,11 +34,12 @@ enum XmlParseMode { PARSE_XML, FIX_XML, STRIP_XML };
 	Child classes (ODFOOXMLParser and ODFXMLParser for now) may want to add or change handlers for some xml tags
 	(using registerODFOOXMLCommandHandler).
 **/
-class CommonXMLDocumentParser: public ChainElement, public with_pimpl<CommonXMLDocumentParser>
+template <safety_policy safety_level = default_safety_level>
+class CommonXMLDocumentParser: public ChainElement, public with_pimpl<CommonXMLDocumentParser<safety_level>>
 {
 	private:
-		friend pimpl_impl<CommonXMLDocumentParser>;
-		using with_pimpl<CommonXMLDocumentParser>::impl;
+		friend pimpl_impl<CommonXMLDocumentParser<safety_level>>;
+		using with_pimpl<CommonXMLDocumentParser<safety_level>>::impl;
 
 	//public interface for derived classes (and its components)
 	public:
@@ -69,8 +70,12 @@ class CommonXMLDocumentParser: public ChainElement, public with_pimpl<CommonXMLD
 		};
 
 		typedef std::vector<ODFOOXMLListStyle> ListStyleVector;
+		using ListStyleMap = std::map<std::string, CommonXMLDocumentParser<safety_level>::ListStyleVector>;
+		using CommentMap = std::map<int, CommonXMLDocumentParser<safety_level>::Comment>;
+		using RelationshipMap = std::map<std::string, CommonXMLDocumentParser<safety_level>::Relationship>;
+		using SharedStringVector = std::vector<SharedString>;
 
-		typedef std::function<void(XmlStream& xml_stream, XmlParseMode mode,
+		typedef std::function<void(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
                                  ZipReader* zipfile, std::string& text,
                                  bool& children_processed, std::string& level_suffix, bool first_on_level)> CommandHandler;
 
@@ -80,16 +85,18 @@ class CommonXMLDocumentParser: public ChainElement, public with_pimpl<CommonXMLD
 			ODFOOXMLParser and ODFXMLParser can add new/overwrite existing handlers in order to change/extend default behaviour of
 			parseXmlData/extractText.
 		**/
-		void registerODFOOXMLCommandHandler(const std::string& xml_tag, CommandHandler handler);
+		void registerODFOOXMLCommandHandler(const std::string& xml_tag, const CommandHandler& handler);
 
-		///parses xml data for given xml stream. It executes commands for each xml tag
-		std::string parseXmlData(XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile);
+		///parses xml data for given xml range. It executes commands for each xml tag
+		std::string parseXmlData(xml::children_view<safety_level> xml_nodes, XmlParseMode mode, ZipReader* zipfile);
+
+		std::string parseXmlChildren(xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile);
 
 		///extracts text from xml data. It uses parseXmlData internally.
-		void extractText(const std::string& xml_contents, XmlParseMode mode, ZipReader* zipfile, std::string& text);
+		void extractText(std::string_view xml_contents, XmlParseMode mode, ZipReader* zipfile, std::string& text);
 
 		///usefull since two parsers use this.
-		void parseODFMetadata(const std::string &xml_content, attributes::Metadata& metadata) const;
+		void parseODFMetadata(std::string_view xml_content, attributes::Metadata& metadata) const;
 
 		///this is helpful function to format comment
 		const std::string formatComment(const std::string& author, const std::string& time, const std::string& text);
@@ -98,28 +105,28 @@ class CommonXMLDocumentParser: public ChainElement, public with_pimpl<CommonXMLD
 		size_t& getListDepth();
 
 		///gets list styles for reading and writing
-		std::map<std::string, ListStyleVector>& getListStyles();
+		ListStyleMap& getListStyles();
 
 		///gets comments for reading and writing
-		std::map<int, Comment>& getComments();
+		CommentMap& getComments();
 
 		///gets relationships for reading and writing
-		std::map<std::string, Relationship>& getRelationships();
+		RelationshipMap& getRelationships();
 
 		///gets vector of shared strings for reading and writing
-		std::vector<SharedString>& getSharedStrings();
+		SharedStringVector& getSharedStrings();
 
 		///checks if writing to the text is disabled (only inside onUnregisteredCommand!)
 		bool disabledText() const;
 
-		///gets options which has been set for XmlStream object. (xmlParserOption from libxml2)
-		XmlStream::no_blanks no_blanks() const;
+		///gets options which has been set for xml::reader object. (xmlParserOption from libxml2)
+		xml::reader_blanks blanks() const;
 
 		///disables modifying text data inside method onUnregisteredCommand
 		void disableText(bool disable);
 
-		///sets options for XmlStream objects. (xmlParserOption from libxml2)
-		void set_no_blanks(XmlStream::no_blanks no_blanks);
+		///sets options for xml::reader objects. (xmlParserOption from libxml2)
+		void set_blanks(xml::reader_blanks blanks);
 
 		void activeEmittingSignals(bool flag);
 

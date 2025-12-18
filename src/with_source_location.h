@@ -9,24 +9,24 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_PARSER_H
-#define DOCWIRE_XML_PARSER_H
+#ifndef DOCWIRE_WITH_SOURCE_LOCATION_H
+#define DOCWIRE_WITH_SOURCE_LOCATION_H
 
-#include "safety_policy.h"
-#include "chain_element.h"
-#include "xml_export.h"
+#include "source_location.h"
 
-namespace docwire
+namespace docwire::detail
 {
+    // This helper struct is implicitly constructed from a value of type T.
+    // Its purpose is to capture the source location of the call site.
+    template <typename T>
+    struct with_source_location
+    {
+        T value;
+        source_location location;
 
-template <safety_policy safety_level = default_safety_level>
-class DOCWIRE_XML_EXPORT XMLParser : public ChainElement
-{
-public:
-	continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
-	bool is_leaf() const override { return false; }
-};
+        constexpr with_source_location(T val, const source_location& loc = source_location::current())
+            : value(val), location(loc) {}
+    };
+}
 
-} // namespace docwire
-
-#endif // DOCWIRE_XML_PARSER_H
+#endif // DOCWIRE_WITH_SOURCE_LOCATION_H

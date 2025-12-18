@@ -9,24 +9,43 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_PARSER_H
-#define DOCWIRE_XML_PARSER_H
+#ifndef DOCWIRE_DEBUG_ASSERT_H
+#define DOCWIRE_DEBUG_ASSERT_H
 
-#include "safety_policy.h"
-#include "chain_element.h"
-#include "xml_export.h"
+#include "make_error.h"
+#include "with_source_location.h"
+
+// In debug builds (when NDEBUG is not defined), DOCWIRE_DEBUG_ASSERT checks a condition
+// and if it's false, prints a message and terminates the program.
+// In release builds (when NDEBUG is defined), it compiles to nothing.
+#ifndef NDEBUG
+namespace docwire::errors
+{
+    [[noreturn]] DOCWIRE_CORE_EXPORT void panic(std::exception_ptr eptr);
+}
+#endif // NDEBUG
 
 namespace docwire
 {
 
-template <safety_policy safety_level = default_safety_level>
-class DOCWIRE_XML_EXPORT XMLParser : public ChainElement
+#ifndef NDEBUG
+
+template<typename... Context>
+void debug_assert(detail::with_source_location<bool> condition, Context&&... context)
 {
-public:
-	continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
-	bool is_leaf() const override { return false; }
-};
+    if (!condition.value)
+    {
+        errors::panic(make_error_ptr_from_tuple(condition.location, std::make_tuple(std::forward<Context>(context)...)));
+    }
+}
+
+#else
+
+template<typename... Context>
+constexpr void debug_assert(detail::with_source_location<bool> /*condition*/, Context&&...) {}
+
+#endif // NDEBUG
 
 } // namespace docwire
 
-#endif // DOCWIRE_XML_PARSER_H
+#endif // DOCWIRE_DEBUG_ASSERT_H

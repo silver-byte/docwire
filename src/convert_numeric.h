@@ -9,24 +9,31 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_PARSER_H
-#define DOCWIRE_XML_PARSER_H
+#ifndef DOCWIRE_CONVERT_NUMERIC_H
+#define DOCWIRE_CONVERT_NUMERIC_H
 
-#include "safety_policy.h"
-#include "chain_element.h"
-#include "xml_export.h"
+#include "convert_base.h"
+#include <charconv>
 
-namespace docwire
+namespace docwire::convert {
+
+// Concept for types supported by std::from_chars in C++20.
+// This excludes bool, which is only supported from C++23.
+template<typename T>
+concept is_from_chars_compatible = (std::is_integral_v<T> && !std::is_same_v<T, bool>) || std::is_floating_point_v<T>;
+
+template<is_from_chars_compatible To, std::convertible_to<std::string_view> From>
+requires (noexcept(std::string_view(std::declval<const From&>())))
+std::optional<To> convert_impl(const From& s, dest_type_tag<To>) noexcept
 {
+	To value{};
+	const std::string_view sv(s);
+	auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), value);
+	if (ec == std::errc() && ptr == sv.data() + sv.size())
+		return value;
+	return std::nullopt;
+}
 
-template <safety_policy safety_level = default_safety_level>
-class DOCWIRE_XML_EXPORT XMLParser : public ChainElement
-{
-public:
-	continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
-	bool is_leaf() const override { return false; }
-};
+} // namespace docwire::convert
 
-} // namespace docwire
-
-#endif // DOCWIRE_XML_PARSER_H
+#endif // DOCWIRE_CONVERT_NUMERIC_H

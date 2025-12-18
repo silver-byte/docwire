@@ -12,12 +12,10 @@
 #include "misc.h"
 
 #include <boost/algorithm/string.hpp>
-#include <iostream>
 #include "log_scope.h"
 #include "serialization_data_source.h" // IWYU pragma: keep
 #include <stdio.h>
 #include <string.h>
-#include <sstream>
 #include <time.h>
 #include "thread_safe_ole_storage.h"
 
@@ -183,47 +181,6 @@ std::string formatNumberedList(std::vector<std::string>& mlist)
 	return list_out;
 }
 
-static bool string_to_int(const std::string& s, int& i)
-{
-	log_scope(s);
-	std::istringstream ss(s);
-	ss >> i;
-	return ss && ss.eof();
-}
-
-bool string_to_date(const std::string& s, tm& date)
-{
-	log_scope(s);
-	// %Y-%m-%dT%H:%M:%S
-	if (s.length() >= 19 &&
-		string_to_int(s.substr(0, 4), date.tm_year) && s[4] == '-' &&
-		string_to_int(s.substr(5, 2), date.tm_mon) && s[7] == '-' &&
-		string_to_int(s.substr(8, 2), date.tm_mday) && s[10] == 'T' &&
-		string_to_int(s.substr(11, 2), date.tm_hour) && s[13] == ':' &&
-		string_to_int(s.substr(14, 2), date.tm_min) && s[16] == ':' &&
-		string_to_int(s.substr(17, 2), date.tm_sec))
-	{
-		date.tm_year -= 1900;
-		date.tm_mon--;
-		return true;
-	}
-	// %Y%m%d;%H%M%S
-	if (s.length() >= 15 &&
-		string_to_int(s.substr(0, 4), date.tm_year) &&
-		string_to_int(s.substr(4, 2), date.tm_mon) &&
-		string_to_int(s.substr(6, 2), date.tm_mday) && s[8] == ';' &&
-		string_to_int(s.substr(9, 2), date.tm_hour) &&
-		string_to_int(s.substr(11, 2), date.tm_min) &&
-		string_to_int(s.substr(13, 2), date.tm_sec))
-	{
-		date.tm_year -= 1900;
-		date.tm_mon--;
-		return true;
-	}
-	date.tm_year = 2001 - 1900;
-	return false;
-}
-
 /*
  UTF8:
  Code points from 0x0 to 0x7F:			0xxxxxxx (1 byte)
@@ -289,15 +246,6 @@ UString utf8_to_ustring(const std::string& src)
 		}
 	}
 	return res;
-}
-
-int str_to_int(const std::string& s)
-{
-	log_scope(s);
-	std::istringstream ss(s);
-	int i;
-	ss >> i;
-	return i;
 }
 
 bool is_encrypted_with_ms_offcrypto(const data_source& data)

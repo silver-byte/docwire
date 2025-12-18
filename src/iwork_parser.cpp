@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include "log_scope.h"
+#include "convert_tm.h" // IWYU pragma: keep
 #include "serialization_data_source.h" // IWYU pragma: keep
 #include <stdio.h>
 #include <sstream>
@@ -30,7 +31,6 @@
 #include <list>
 #include <vector>
 #include <cmath>
-#include "misc.h"
 
 namespace docwire
 {
@@ -1882,16 +1882,14 @@ struct pimpl_impl<IWorkParser> : pimpl_impl_base
 					}
 					if (m_creation_date.length() > 0)
 					{
-						tm creation_date;
-						if (string_to_date(m_creation_date, creation_date))
+						if (auto creation_date = convert::try_to<tm>(m_creation_date))
 							m_metadata->creation_date = creation_date;
 						else
 							non_fatal_error_handler(make_error_ptr("Error occured during parsing date", m_creation_date));
 					}
 					if (m_last_modify_date.length() > 0)
 					{
-						tm last_modification_date;
-						if (string_to_date(m_last_modify_date, last_modification_date))
+						if (auto last_modification_date = convert::try_to<tm>(m_last_modify_date))
 							m_metadata->last_modification_date = last_modification_date;
 						else
 							non_fatal_error_handler(make_error_ptr("Error occured during parsing date", m_last_modify_date));

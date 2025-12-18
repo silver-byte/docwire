@@ -17,6 +17,7 @@
 #include "diagnostic_context.h"
 #include "log_core.h"
 #include "log_tags.h"
+#include "named.h"
 #include <span>
 #include <string>
 #include <type_traits>
@@ -80,6 +81,14 @@ serialization::value to_log_value(const std::pair<T1, T2>& p)
 {
     serialization::object context_obj;
     context_obj.v[p.first] = serialization::typed_summary(p.second);
+    return context_obj;
+}
+
+template<typename T>
+serialization::value to_log_value(const docwire::named::value<T>& p)
+{
+    serialization::object context_obj;
+    context_obj.v[std::string{p.name}] = serialization::typed_summary(p.value);
     return context_obj;
 }
 

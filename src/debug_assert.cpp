@@ -9,24 +9,19 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_XML_PARSER_H
-#define DOCWIRE_XML_PARSER_H
+#include "debug_assert.h"
 
-#include "safety_policy.h"
-#include "chain_element.h"
-#include "xml_export.h"
+#ifndef NDEBUG
+#include "diagnostic_message.h"
+#include <iostream>
+#include <cstdlib>
 
-namespace docwire
+namespace docwire::errors
 {
-
-template <safety_policy safety_level = default_safety_level>
-class DOCWIRE_XML_EXPORT XMLParser : public ChainElement
-{
-public:
-	continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
-	bool is_leaf() const override { return false; }
-};
-
-} // namespace docwire
-
-#endif // DOCWIRE_XML_PARSER_H
+    [[noreturn]] void panic(std::exception_ptr eptr)
+    {
+        std::cerr << "Terminating due to contract violation: " << diagnostic_message(eptr) << std::endl;
+        std::abort();
+    }
+}
+#endif

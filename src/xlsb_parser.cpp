@@ -19,6 +19,7 @@
 #include "document_elements.h"
 #include "error_tags.h"
 #include "scoped_stack_push.h"
+#include "convert_tm.h" // IWYU pragma: keep
 #include "zip_reader.h"
 #include <iostream>
 #include "log_entry.h"
@@ -617,8 +618,7 @@ struct pimpl_impl<XLSBParser> : pimpl_impl_base
 			if (creation_date.find(">") != std::string::npos)
 			{
 				creation_date.erase(0, creation_date.find(">") + 1);
-				tm creation_date_tm;
-				if (creation_date.length() > 0 && string_to_date(creation_date, creation_date_tm))
+				if (auto creation_date_tm = convert::try_to<tm>(creation_date))
 					metadata.creation_date = creation_date_tm;
 			}
 		}
@@ -631,8 +631,7 @@ struct pimpl_impl<XLSBParser> : pimpl_impl_base
 			if (last_modification_date.find(">") != std::string::npos)
 			{
 				last_modification_date.erase(0, last_modification_date.find(">") + 1);
-				tm last_modification_date_tm;
-				if (last_modification_date.length() > 0 && string_to_date(last_modification_date, last_modification_date_tm))
+				if (auto last_modification_date_tm = convert::try_to<tm>(last_modification_date))
 					metadata.last_modification_date = last_modification_date_tm;
 			}
 		}

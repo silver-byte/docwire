@@ -16,6 +16,7 @@
 #include "file_extension.h"
 #include <filesystem>
 #include <functional>
+#include <span>
 #include "memory_buffer.h"
 #include <optional>
 #include <string_view>
@@ -143,6 +144,8 @@ class DOCWIRE_CORE_EXPORT data_source
 		std::span<const std::byte> span(std::optional<length_limit> limit = std::nullopt) const;
 
 		std::string string(std::optional<length_limit> limit = std::nullopt) const;
+
+		std::string_view string_view(std::optional<length_limit> limit = std::nullopt) const;
 
 		std::shared_ptr<std::istream> istream() const;
 
