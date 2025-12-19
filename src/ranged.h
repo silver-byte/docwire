@@ -39,21 +39,21 @@ inline constexpr unlimited_t unlimited;
 template <auto Min, auto Max, typename T, safety_policy safety_level = default_safety_level>
 class ranged
 {
-    static_assert(!std::is_same_v<decltype(Min), unlimited_t> || !std::is_same_v<decltype(Max), unlimited_t>,
+    static_assert(!std::is_same_v<std::remove_const_t<decltype(Min)>, unlimited_t> || !std::is_same_v<std::remove_const_t<decltype(Max)>, unlimited_t>,
                   "ranged must have at least one concrete bound; use the raw type instead of ranged<..., unlimited, unlimited>.");
 
-    static_assert(std::is_same_v<decltype(Min), unlimited_t> || std::is_convertible_v<decltype(Min), T>,
+    static_assert(std::is_same_v<std::remove_const_t<decltype(Min)>, unlimited_t> || std::is_convertible_v<decltype(Min), T>,
                   "The Min bound must be convertible to the ranged type T.");
 
-    static_assert(std::is_same_v<decltype(Max), unlimited_t> || std::is_convertible_v<decltype(Max), T>,
+    static_assert(std::is_same_v<std::remove_const_t<decltype(Max)>, unlimited_t> || std::is_convertible_v<decltype(Max), T>,
                   "The Max bound must be convertible to the ranged type T.");
 public:
     ranged(T value) : m_value(value)
     {
-        if constexpr (!std::is_same_v<decltype(Min), unlimited_t>) {
+        if constexpr (!std::is_same_v<std::remove_const_t<decltype(Min)>, unlimited_t>) {
             enforce<safety_level>(m_value >= static_cast<T>(Min), "Value is below the expected minimum", "value"_v = m_value, "min"_v = static_cast<T>(Min));
         }
-        if constexpr (!std::is_same_v<decltype(Max), unlimited_t>) {
+        if constexpr (!std::is_same_v<std::remove_const_t<decltype(Max)>, unlimited_t>) {
             enforce<safety_level>(m_value <= static_cast<T>(Max), "Value is above the expected maximum", "value"_v = m_value, "max"_v = static_cast<T>(Max));
         }
     }

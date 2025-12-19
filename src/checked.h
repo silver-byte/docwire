@@ -78,7 +78,7 @@ public:
     }
 
     template<typename... Args>
-    void reset(Args&&... args) noexcept(noexcept(m_value.reset(std::forward<Args>(args)...))) requires requires(Dereferenceable& v, Args&&... a) { v.reset(std::forward<Args>(a)...); }
+    void reset(Args&&... args) noexcept(noexcept(std::declval<Dereferenceable&>().reset(std::forward<Args>(args)...))) requires requires(Dereferenceable& v, Args&&... a) { v.reset(std::forward<Args>(a)...); }
     {
         m_value.reset(std::forward<Args>(args)...);
     }
