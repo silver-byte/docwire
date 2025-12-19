@@ -206,7 +206,7 @@ node_type reader<safety_level>::type() const
 	return impl().type();
 }
 
-template class reader<strict>;
-template class reader<relaxed>;
+template class DOCWIRE_XML_EXPORT reader<strict>;
+template class DOCWIRE_XML_EXPORT reader<relaxed>;
 
 }

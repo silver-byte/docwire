@@ -25,6 +25,7 @@
 #include "convert_numeric.h" // IWYU pragma: keep
 #include "convert_tm.h" // IWYU pragma: keep
 #include <algorithm>
+#include "odf_ooxml_export.h"
 #include "xml_attributes.h"
 
 namespace docwire
@@ -737,8 +738,8 @@ CommonXMLDocumentParser<safety_level>::scoped_context_stack_push::~scoped_contex
 	m_parser.impl().m_context_stack.pop();
 }
 
-template class CommonXMLDocumentParser<strict>;
-template class CommonXMLDocumentParser<relaxed>;
+template class DOCWIRE_ODF_OOXML_EXPORT CommonXMLDocumentParser<strict>;
+template class DOCWIRE_ODF_OOXML_EXPORT CommonXMLDocumentParser<relaxed>;
 
 // These are not required but help static analyzer
 template class pimpl_impl<CommonXMLDocumentParser<strict>>;

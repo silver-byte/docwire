@@ -89,7 +89,7 @@ continuation XMLParser<safety_level>::operator()(message_ptr msg, const message_
 	return continuation::proceed;
 }
 
-template class XMLParser<strict>;
-template class XMLParser<relaxed>;
+template class DOCWIRE_XML_EXPORT XMLParser<strict>;
+template class DOCWIRE_XML_EXPORT XMLParser<relaxed>;
 
 } // namespace docwire

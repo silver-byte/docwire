@@ -180,7 +180,7 @@ continuation ODFXMLParser<safety_level>::operator()(message_ptr msg, const messa
 	return continuation::proceed;
 }
 
-template class ODFXMLParser<strict>;
-template class ODFXMLParser<relaxed>;
+template class DOCWIRE_ODF_OOXML_EXPORT ODFXMLParser<strict>;
+template class DOCWIRE_ODF_OOXML_EXPORT ODFXMLParser<relaxed>;
 
 } // namespace docwire

@@ -742,7 +742,7 @@ continuation ODFOOXMLParser<safety_level>::operator()(message_ptr msg, const mes
 	return continuation::proceed;
 }
 
-template class ODFOOXMLParser<strict>;
-template class ODFOOXMLParser<relaxed>;
+template class DOCWIRE_ODF_OOXML_EXPORT ODFOOXMLParser<strict>;
+template class DOCWIRE_ODF_OOXML_EXPORT ODFOOXMLParser<relaxed>;
 
 } // namespace docwire
