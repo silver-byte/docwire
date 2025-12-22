@@ -15,6 +15,7 @@
 #include <optional>
 #include "error_tags.h"
 #include "throw_if.h"
+#include "type_name.h"
 
 namespace docwire::convert
 {
@@ -56,7 +57,7 @@ requires conversion_implementation_exists<To, From>
 To to(const From& from)
 {
 	auto result = try_to<To>(from);
-	throw_if(!result.has_value(), "Failed to convert value", from, errors::uninterpretable_data{});
+	throw_if(!result.has_value(), "Failed to convert value", std::make_pair("from_type", type_name::pretty<From>()), std::make_pair("to_type", type_name::pretty<To>()), errors::uninterpretable_data{});
 	return *result;
 }
 
