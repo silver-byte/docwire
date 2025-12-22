@@ -9,23 +9,25 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_SERIALIZATION_TIME_H
-#define DOCWIRE_SERIALIZATION_TIME_H
+#ifndef DOCWIRE_CONVERT_CHRONO_H
+#define DOCWIRE_CONVERT_CHRONO_H
 
-#include "core_export.h"
-#include <ctime>
-#include "serialization_base.h"
+#include "convert_base.h"
+#include <chrono>
+#include <optional>
+#include <string>
+#include "with_date_format.h"
 
-namespace docwire::serialization
+namespace docwire::convert
 {
 
-template <>
-struct serializer<struct tm>
-{
-    DOCWIRE_CORE_EXPORT value full(const struct tm& t) const;
-    value typed_summary(const struct tm& t) const { return decorate_with_typeid(this->full(t), type_name::pretty<struct tm>()); }
-};
+DOCWIRE_CORE_EXPORT std::optional<std::chrono::sys_seconds> convert_impl(with::date_format::iso8601 s, dest_type_tag<std::chrono::sys_seconds>) noexcept;
+DOCWIRE_CORE_EXPORT std::optional<std::chrono::sys_seconds> convert_impl(with::date_format::openoffice_legacy s, dest_type_tag<std::chrono::sys_seconds>) noexcept;
+DOCWIRE_CORE_EXPORT std::optional<std::chrono::sys_seconds> convert_impl(with::date_format::asn1 s, dest_type_tag<std::chrono::sys_seconds>) noexcept;
 
-} // namespace docwire::serialization
+// Formatting sys_seconds to string
+DOCWIRE_CORE_EXPORT std::optional<std::string> convert_impl(std::chrono::sys_seconds tp, dest_type_tag<std::string>) noexcept;
 
-#endif // DOCWIRE_SERIALIZATION_TIME_H
+} // namespace docwire::convert
+
+#endif // DOCWIRE_CONVERT_CHRONO_H

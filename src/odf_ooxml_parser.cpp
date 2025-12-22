@@ -21,8 +21,8 @@
 #include "log_entry.h"
 #include "log_scope.h"
 #include "make_error.h"
+#include "convert_chrono.h" // IWYU pragma: keep 
 #include "convert_numeric.h" // IWYU pragma: keep
-#include "convert_tm.h" // IWYU pragma: keep
 #include "misc.h"
 #include <mutex>
 #include "nested_exception.h"
@@ -653,11 +653,11 @@ attributes::Metadata ODFOOXMLParser<safety_level>::metaData(ZipReader& zipfile) 
 				if (node.name() == "creator")
 					meta.author = std::string(node.string_value());
 				if (node.name() == "created")
-                    meta.creation_date = convert::try_to<tm>(node.string_value());
+                    meta.creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{node.string_value()});
 				if (node.name() == "lastModifiedBy")
 					meta.last_modified_by = std::string(node.string_value());
 				if (node.name() == "modified")
-                    meta.last_modification_date = convert::try_to<tm>(node.string_value());
+                    meta.last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{node.string_value()});
 			}
 		}
 		catch (const std::exception& e)

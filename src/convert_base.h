@@ -22,13 +22,18 @@ namespace docwire::convert
 template<typename T>
 struct dest_type_tag {};
 
+template <typename To, typename From>
+concept conversion_implementation_exists = requires(const From& from) {
+    { convert_impl(from, convert::dest_type_tag<To>{}) } noexcept -> std::same_as<std::optional<To>>;
+};
+
 namespace detail
 {
 
 struct convert_cpo
 {
     template<typename To, typename From>
-    requires requires(const From& from) { { convert_impl(from, dest_type_tag<To>{}) } noexcept; }
+    requires conversion_implementation_exists<To, From>
     constexpr std::optional<To> operator()(const From& from) const noexcept
     {
         return convert_impl(from, dest_type_tag<To>{});
@@ -40,14 +45,14 @@ inline constexpr convert_cpo convert_cpo;
 } // namespace detail
 
 template<typename To, typename From>
-requires requires(const From& from) { detail::convert_cpo.template operator()<To, From>(from); }
+requires conversion_implementation_exists<To, From>
 constexpr std::optional<To> try_to(const From& from) noexcept
 {
 	return detail::convert_cpo.template operator()<To, From>(from);
 }
 
 template<typename To, typename From>
-requires requires(const From& from) { try_to<To>(from); }
+requires conversion_implementation_exists<To, From>
 To to(const From& from)
 {
 	auto result = try_to<To>(from);

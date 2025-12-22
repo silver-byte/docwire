@@ -24,11 +24,11 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include "charset_converter.h"
+#include "convert_chrono.h" // IWYU pragma: keep
 #include "data_source.h"
 #include "log_entry.h"
 #include "log_scope.h"
 #include "make_error.h"
-#include "convert_tm.h" // IWYU pragma: keep
 #include <mutex>
 #include "nested_exception.h"
 #include <set>
@@ -803,7 +803,10 @@ void pimpl_impl<HTMLParser>::process_tag(const lxb_dom_node_t* node, bool is_clo
 				else if (boost::iequals(name, "created") ||
 						boost::iequals(name, "dcterms.issued"))
 				{
-					if (auto creation_date = convert::try_to<tm>(content))
+					auto creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{content});
+					if (!creation_date)
+						creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::openoffice_legacy{content});
+					if (creation_date)
 					{
 						m_context_stack.top().meta.creation_date = creation_date;
 					}
@@ -814,7 +817,10 @@ void pimpl_impl<HTMLParser>::process_tag(const lxb_dom_node_t* node, bool is_clo
 					// Multiple changed meta tags are possible - LibreOffice 3.5 is an example
 					if (!m_context_stack.top().meta.last_modification_date)
 					{
-						if (auto last_modification_date = convert::try_to<tm>(content))
+						auto last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{content});
+						if (!last_modification_date)
+							last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::openoffice_legacy{content});
+						if (last_modification_date)
 						{
 							m_context_stack.top().meta.last_modification_date = last_modification_date;
 						}

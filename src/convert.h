@@ -14,8 +14,8 @@
 
 // IWYU pragma: begin_exports
 #include "convert_base.h"
+#include "convert_chrono.h"
 #include "convert_numeric.h"
-#include "convert_tm.h"
 // IWYU pragma: end_exports
 
 #endif // DOCWIRE_CONVERT_H

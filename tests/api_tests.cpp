@@ -24,6 +24,7 @@
 #include "content_type_odf_flat.h"
 #include "content_type_outlook.h"
 #include "content_type_xlsb.h"
+#include "convert_chrono.h" // IWYU pragma: keep
 #include "data_source.h"
 #include "diagnostic_message.h"
 #include "ensure.h"
@@ -2667,6 +2668,17 @@ TEST(tokenizer, multilingual_e5)
     }
 }
 
+TEST(Convert, Chrono)
+{
+    using namespace docwire::serialization;
+
+    // Test std::chrono::sys_seconds
+    using namespace std::chrono;
+    auto tp = sys_days{year{2024}/6/15} + hours{10} + minutes{30};
+    std::string str_time = convert::to<std::string>(std::chrono::sys_seconds{tp});
+    EXPECT_EQ(str_time, "2024-06-15 10:30:00");
+}
+
 TEST(Serialization, PureSerialization)
 {
     using namespace docwire::serialization;
@@ -2790,22 +2802,6 @@ TEST(Serialization, StdTypes)
     value v_exc = full(std::runtime_error("An error occurred"));
     ASSERT_TRUE(std::holds_alternative<object>(v_exc));
     EXPECT_EQ(std::get<std::string>(std::get<object>(v_exc).v.at("what")), "An error occurred");
-}
-
-TEST(Serialization, Time)
-{
-    using namespace docwire::serialization;
-
-    // Test std::tm
-    struct tm test_time = {};
-    test_time.tm_year = 2024 - 1900; // years since 1900
-    test_time.tm_mon = 5;            // months since January [0-11]
-    test_time.tm_mday = 15;
-    test_time.tm_hour = 10;
-    test_time.tm_min = 30;
-    value v_time = full(test_time);
-    ASSERT_TRUE(std::holds_alternative<std::string>(v_time));
-    EXPECT_EQ(std::get<std::string>(v_time), "2024-06-15 10:30:00");
 }
 
 TEST(Serialization, TypedSummaryPrimitives)

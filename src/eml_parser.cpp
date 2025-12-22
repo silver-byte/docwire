@@ -10,12 +10,14 @@
 /*********************************************************************************************************************************************/
 
 #include <algorithm>
+#include <optional>
 #include <stack>
 #include <string>
 
 #include "eml_parser.h"
 
 #include "charset_converter.h"
+#include "convert_base.h"
 #include "mail_elements.h"
 #include "data_source.h"
 #include "document_elements.h"
@@ -252,19 +254,38 @@ continuation EMLParser::operator()(message_ptr msg, const message_callbacks& emi
 namespace
 {
 
+struct mailio_time { boost::local_time::local_date_time v; };
+
+std::optional<std::chrono::sys_seconds> convert_impl(const mailio_time& ldt, convert::dest_type_tag<std::chrono::sys_seconds>) noexcept
+{
+	try
+	{
+		if (ldt.v.is_special())
+			return std::nullopt;
+		boost::posix_time::ptime pt = ldt.v.utc_time();
+		static const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+		boost::posix_time::time_duration diff = pt - epoch;
+		return std::chrono::sys_seconds(std::chrono::seconds(diff.total_seconds()));
+	}
+	catch (...)
+	{
+		return std::nullopt;
+	}
+}
+
 attributes::Metadata metaData(const mailio::message& mime_entity)
 {
 	log_scope();
 	attributes::Metadata metadata;
 	metadata.author = mime_entity.from_to_string();
-	metadata.creation_date = to_tm(mime_entity.date_time());
+	metadata.creation_date = convert::try_to<std::chrono::sys_seconds>(mailio_time{mime_entity.date_time()});
 
 	//in EML file format author is visible under key "From". And creation date is visible under key "Data".
 	//So, should I repeat the same values or skip them?
 	metadata.email_attrs = attributes::Email
 	{
 		.from = mime_entity.from_to_string(),
-		.date = to_tm(mime_entity.date_time())
+		.date = convert::to<std::chrono::sys_seconds>(mailio_time{mime_entity.date_time()})
 	};
 
 	std::string to = mime_entity.recipients_to_string();

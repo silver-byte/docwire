@@ -14,6 +14,7 @@
 
 #include "convert_base.h"
 #include <charconv>
+#include "with_partial_match.h"
 
 namespace docwire::convert {
 
@@ -29,9 +30,15 @@ std::optional<To> convert_impl(const From& s, dest_type_tag<To>) noexcept
 	To value{};
 	const std::string_view sv(s);
 	auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), value);
-	if (ec == std::errc() && ptr == sv.data() + sv.size())
-		return value;
-	return std::nullopt;
+
+    if (ec != std::errc() || ptr == sv.data()) // Check for conversion errors or if no characters were consumed.
+        return std::nullopt;
+
+    if constexpr (!std::is_same_v<From, with::partial_match>)
+        if (ptr != sv.data() + sv.size())
+            return std::nullopt;
+
+    return value;
 }
 
 } // namespace docwire::convert

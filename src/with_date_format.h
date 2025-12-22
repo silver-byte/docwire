@@ -9,32 +9,20 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#include "serialization_time.h"
+#ifndef DOCWIRE_WITH_DATE_FORMAT_H
+#define DOCWIRE_WITH_DATE_FORMAT_H
 
-#include <string>
+#include <string_view>
 
-namespace docwire::serialization
+namespace with::date_format
 {
 
-namespace
-{
-    // Helper to convert an integer to a two-digit, zero-padded string.
-    std::string to_string_padded(int value)
-    {
-        if (value >= 0 && value < 10)
-            return "0" + std::to_string(value);
-        else
-            return std::to_string(value);
-    }
-}
+struct iso8601 { std::string_view v; };
 
-value serializer<struct tm>::full(const struct tm& t) const
-{
-    // We build the string manually for performance, portability, and thread-safety.
-    return std::to_string(t.tm_year + 1900) + '-' +
-            to_string_padded(t.tm_mon + 1) + '-' + to_string_padded(t.tm_mday) + ' ' +
-            to_string_padded(t.tm_hour) + ':' + to_string_padded(t.tm_min) + ':' +
-            to_string_padded(t.tm_sec);
-}
+struct openoffice_legacy { std::string_view v; };
 
-} // namespace docwire::serialization
+struct asn1 { std::string_view v; };
+
+} // namespace with::date_format
+
+#endif // DOCWIRE_WITH_DATE_FORMAT_H

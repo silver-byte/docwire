@@ -9,19 +9,20 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_CONVERT_TM_H
-#define DOCWIRE_CONVERT_TM_H
+#ifndef DOCWIRE_WITH_PARTIAL_MATCH_H
+#define DOCWIRE_WITH_PARTIAL_MATCH_H
 
-#include "convert_base.h"
-#include <ctime>
-#include <optional>
 #include <string_view>
 
-namespace docwire::convert
+namespace with
 {
 
-DOCWIRE_CORE_EXPORT std::optional<tm> convert_impl(std::string_view s, dest_type_tag<tm>) noexcept;
+struct partial_match
+{
+    std::string_view v;
+    operator std::string_view() const noexcept { return v; }
+};
 
-}
+} // namespace with
 
-#endif // DOCWIRE_CONVERT_TM_H
+#endif // DOCWIRE_WITH_PARTIAL_MATCH_H

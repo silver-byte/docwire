@@ -12,9 +12,9 @@
 #ifndef DOCWIRE_ATTRIBUTES_H
 #define DOCWIRE_ATTRIBUTES_H
 
+#include <chrono>
 #include <concepts>
 #include <cstddef>
-#include <ctime>
 #include <optional>
 #include <string>
 #include <vector>
@@ -34,7 +34,7 @@ struct Styling
 struct Email
 {
   std::string from;
-	tm date;
+	std::chrono::sys_seconds date;
   std::optional<std::string> to;
 	std::optional<std::string> subject;
   std::optional<std::string> reply_to;
@@ -44,9 +44,9 @@ struct Email
 struct Metadata
 {
   std::optional<std::string> author;
-  std::optional<tm> creation_date;
+  std::optional<std::chrono::sys_seconds> creation_date;
   std::optional<std::string> last_modified_by;
-  std::optional<tm> last_modification_date;
+  std::optional<std::chrono::sys_seconds> last_modification_date;
   std::optional<size_t> page_count;
   std::optional<size_t> word_count;
   std::optional<Email> email_attrs;

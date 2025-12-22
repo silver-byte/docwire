@@ -75,6 +75,7 @@ std::optional<std::string_view> attribute_value(const node_ref<safety_level>& no
  * @return An std::optional<T> containing the converted value if the attribute is found and conversion succeeds, otherwise std::nullopt.
  */
 template<typename T, safety_policy safety_level>
+requires convert::conversion_implementation_exists<T, std::string_view>
 std::optional<T> attribute_value(const node_ref<safety_level>& node, std::string_view name)
 {
     if (auto sv = attribute_value(node, name))

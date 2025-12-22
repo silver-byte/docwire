@@ -12,6 +12,7 @@
 #include "pdf_parser.h"
 
 #include <cmath>
+#include "convert_chrono.h" // IWYU pragma: keep
 #include "data_source.h"
 #include "document_elements.h"
 #include "error_tags.h"
@@ -45,27 +46,6 @@ namespace docwire
 namespace
 {
 	std::mutex pdfium_mutex;
-
-void parsePDFDate(tm& date, const std::string& str_date)
-{
-	log_scope(str_date);
-	if (str_date.length() < 14)
-		return;
-	std::string year = str_date.substr(0, 4);
-	date.tm_year = strtol(year.c_str(), NULL, 10);
-	std::string month = str_date.substr(4, 2);
-	date.tm_mon = strtol(month.c_str(), NULL, 10);
-	std::string day = str_date.substr(6, 2);
-	date.tm_mday = strtol(day.c_str(), NULL, 10);
-	std::string hour = str_date.substr(8, 2);
-	date.tm_hour = strtol(hour.c_str(), NULL, 10);
-	std::string minute = str_date.substr(10, 2);
-	date.tm_min = strtol(minute.c_str(), NULL, 10);
-	std::string second = str_date.substr(12, 2);
-	date.tm_sec = strtol(second.c_str(), NULL, 10);
-	date.tm_year -= 1900;
-	--date.tm_mon;
-}
 
 using pix_unique_ptr = std::unique_ptr<PIX, decltype([](PIX* pix) { pixDestroy(&pix); })>;
 using leptonica_data_ptr = std::unique_ptr<l_uint8, decltype(&lept_free)>;
@@ -567,24 +547,20 @@ struct pimpl_impl<PDFParser> : pimpl_impl_base
 		std::string creation_date_str = get_meta_text("CreationDate");
 		if (!creation_date_str.empty())
 		{
-			tm creation_date_tm;
 			int offset = 0;
 			while (creation_date_str.length() > offset && (creation_date_str[offset] < '0' || creation_date_str[offset] > '9'))
 				++offset;
 			creation_date_str.erase(0, offset);
-			parsePDFDate(creation_date_tm, creation_date_str);
-			metadata.creation_date = creation_date_tm;
+			metadata.creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::asn1{creation_date_str});
 		}
 		std::string mod_date_str = get_meta_text("ModDate");
 		if (!mod_date_str.empty())
 		{
-			tm modify_date_tm;
 			int offset = 0;
 			while (mod_date_str.length() > offset && (mod_date_str[offset] < '0' || mod_date_str[offset] > '9'))
 				++offset;
 			mod_date_str.erase(0, offset);
-			parsePDFDate(modify_date_tm, mod_date_str);
-			metadata.last_modification_date = modify_date_tm;
+			metadata.last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::asn1{mod_date_str});
 		}
 		std::lock_guard<std::mutex> pdfium_mutex_lock(pdfium_mutex);
 		metadata.page_count = FPDF_GetPageCount(pdf_document());

@@ -22,8 +22,8 @@
 #include "xml_fixer.h"
 #include "xml_root_element.h"
 #include "document_elements.h"
-#include "convert_numeric.h" // IWYU pragma: keep
-#include "convert_tm.h" // IWYU pragma: keep
+#include "convert_chrono.h" // IWYU pragma: keep
+#include "convert_numeric.h" // IWYU pragma: keep 
 #include <algorithm>
 #include "odf_ooxml_export.h"
 #include "xml_attributes.h"
@@ -629,11 +629,11 @@ void CommonXMLDocumentParser<safety_level>::parseODFMetadata(std::string_view xm
 					if (node.name() == "initial-creator")
 						metadata.author = node.string_value();
 					if (node.name() == "creation-date")
-                    	metadata.creation_date = convert::try_to<tm>(node.string_value());
+                    	metadata.creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{node.string_value()});
 					if (node.name() == "creator")
 						metadata.last_modified_by = node.string_value();
 					if (node.name() == "date")
-						metadata.last_modification_date = convert::try_to<tm>(node.string_value());
+						metadata.last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{node.string_value()});
 					if (node.name() == "document-statistic")
 					{
 					metadata.page_count = attribute_value<int>(node, "meta:page-count"); // LibreOffice 3.5
