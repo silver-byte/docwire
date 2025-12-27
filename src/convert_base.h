@@ -13,8 +13,10 @@
 #define DOCWIRE_CONVERT_BASE_H
 
 #include <optional>
+#include <tuple>
 #include "error_tags.h"
-#include "throw_if.h"
+#include "make_error.h"
+#include "source_location.h"
 #include "type_name.h"
 
 namespace docwire::convert
@@ -57,7 +59,11 @@ requires conversion_implementation_exists<To, From>
 To to(const From& from)
 {
 	auto result = try_to<To>(from);
-	throw_if(!result.has_value(), "Failed to convert value", std::make_pair("from_type", type_name::pretty<From>()), std::make_pair("to_type", type_name::pretty<To>()), errors::uninterpretable_data{});
+	if (!result.has_value())
+	{
+		auto context = std::make_tuple("Failed to convert value", "from_type"_v = type_name::pretty<From>(), "to_type"_v = type_name::pretty<To>(), errors::uninterpretable_data{});
+		throw errors::make_error_from_tuple(source_location::current(), std::move(context));
+	}
 	return *result;
 }
 
