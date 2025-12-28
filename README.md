@@ -516,6 +516,41 @@ std::filesystem::path("1.pst") | content_type::detector{} | mail_parser{} | offi
 ```
 [Full example](https://docwire.readthedocs.io/en/latest/join_transformers_8cpp-example.html)
 
+Parse XML using modern C++20 API:
+
+```cpp
+xml::reader reader(xml_data); // You can use xml::reader<relaxed> instead for maximum speed (skips safety checks)
+
+// Filter nodes using C++20 views
+auto products = xml::children(xml::root_element(reader)) 
+              | std::views::filter([](auto n) { return n.name() == "product"; });
+
+for (auto product_node : products)
+{
+    // Iterate over attributes
+    for (auto attr : xml::attributes(product_node))
+    {
+        if (attr.name() == "id")
+        {
+             non_negative<int> id = convert::to<int>(attr);
+        }
+    }
+
+    // Retrieve attributes with automatic type conversion
+    non_negative<int> id = *xml::attribute_value<int>(product_node, "id");
+    // attribute_value() returns checked<std::optional<T>>. Dereferencing (*) throws if the attribute is missing (preventing undefined behavior), unless xml::reader<relaxed> is used
+    auto children = xml::children(product_node);
+    ...
+    // Find node using range algorithm
+    auto price_node = std::ranges::find_if(children, [](auto n) { return n.name() == "price"; });
+
+    // Convert node content to double
+    double price = convert::to<double>(*price_node);
+    ...
+}
+```
+[Full example](https://docwire.readthedocs.io/en/latest/xml_parsing_example_8cpp-example.html)
+
 <a name="awards"></a>
 ## Awards
 

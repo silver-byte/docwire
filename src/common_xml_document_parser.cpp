@@ -636,12 +636,12 @@ void CommonXMLDocumentParser<safety_level>::parseODFMetadata(std::string_view xm
 						metadata.last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{node.string_value()});
 					if (node.name() == "document-statistic")
 					{
-					metadata.page_count = attribute_value<int>(node, "meta:page-count"); // LibreOffice 3.5
+						metadata.page_count = attribute_value<int>(node, "meta:page-count").unwrap(); // LibreOffice 3.5
 						if (!metadata.page_count)
-							metadata.page_count = attribute_value<int>(node, "page-count"); // older OpenOffice.org
-						metadata.word_count = attribute_value<int>(node, "meta:word-count"); // LibreOffice 3.5
+							metadata.page_count = attribute_value<int>(node, "page-count").unwrap(); // older OpenOffice.org
+						metadata.word_count = attribute_value<int>(node, "meta:word-count").unwrap(); // LibreOffice 3.5
 						if (!metadata.word_count)
-							metadata.word_count = attribute_value<int>(node, "word-count"); // older OpenOffice.org
+							metadata.word_count = attribute_value<int>(node, "word-count").unwrap(); // older OpenOffice.org
 					}
 				}
 			}

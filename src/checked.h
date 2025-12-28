@@ -15,6 +15,7 @@
 #include "safety_policy.h"
 #include "enforce.h"
 #include <utility>
+#include <type_traits>
 
 namespace docwire
 {
@@ -41,7 +42,13 @@ public:
     // Generic forwarding constructor for constructing the underlying object.
     // This is constrained to avoid interfering with copy/move constructors.
     template <typename... Args,
-              typename = std::enable_if_t<std::is_constructible_v<Dereferenceable, Args...> && (sizeof...(Args) > 1)>>
+              typename = std::enable_if_t<
+                  std::is_constructible_v<Dereferenceable, Args...> &&
+                  (sizeof...(Args) > 1 || 
+                   (sizeof...(Args) == 1 && 
+                    ((!std::is_same_v<std::decay_t<Args>, checked> && 
+                      !std::is_same_v<std::decay_t<Args>, Dereferenceable>) && ...)))
+              >>
     checked(Args&&... args)
         : m_value(std::forward<Args>(args)...) {}
 
@@ -77,6 +84,28 @@ public:
         return m_value.has_value();
     }
 
+    constexpr decltype(auto) value() const
+        noexcept(noexcept(std::declval<const Dereferenceable&>().value()))
+        requires requires(const Dereferenceable& v) { v.value(); }
+    {
+        return m_value.value();
+    }
+
+    constexpr decltype(auto) value()
+        noexcept(noexcept(std::declval<Dereferenceable&>().value()))
+        requires requires(Dereferenceable& v) { v.value(); }
+    {
+        return m_value.value();
+    }
+
+    template <typename U>
+    constexpr auto value_or(U&& default_value) const
+        noexcept(noexcept(std::declval<const Dereferenceable&>().value_or(std::forward<U>(default_value))))
+        requires requires(const Dereferenceable& v) { v.value_or(std::forward<U>(default_value)); }
+    {
+        return m_value.value_or(std::forward<U>(default_value));
+    }
+
     template<typename... Args>
     void reset(Args&&... args) noexcept(noexcept(std::declval<Dereferenceable&>().reset(std::forward<Args>(args)...))) requires requires(Dereferenceable& v, Args&&... a) { v.reset(std::forward<Args>(a)...); }
     {
@@ -87,6 +116,28 @@ public:
     auto& emplace(Args&&... args) requires requires(Dereferenceable v, Args&&... a) { v.emplace(std::forward<Args>(a)...); }
     {
         return m_value.emplace(std::forward<Args>(args)...);
+    }
+
+    constexpr const Dereferenceable& unwrap() const & noexcept { return m_value; }
+    constexpr Dereferenceable& unwrap() & noexcept { return m_value; }
+    constexpr Dereferenceable&& unwrap() && noexcept { return std::move(m_value); }
+
+    explicit constexpr operator const Dereferenceable&() const & noexcept { return m_value; }
+    explicit constexpr operator Dereferenceable&() & noexcept { return m_value; }
+    explicit constexpr operator Dereferenceable&&() && noexcept { return std::move(m_value); }
+
+    template <typename U>
+    friend constexpr bool operator==(const checked& lhs, const U& rhs)
+        requires (!std::is_same_v<std::decay_t<U>, checked>) &&
+                 requires { std::declval<const Dereferenceable&>() == rhs; }
+    {
+        return lhs.m_value == rhs;
+    }
+
+    friend constexpr bool operator==(const checked& lhs, const checked& rhs)
+        requires requires { std::declval<const Dereferenceable&>() == std::declval<const Dereferenceable&>(); }
+    {
+        return lhs.m_value == rhs.m_value;
     }
 
 private:

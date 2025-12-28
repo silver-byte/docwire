@@ -16,6 +16,8 @@
 #include "xml_reader.h"
 #include <functional>
 #include <string_view>
+#include <optional>
+#include "convert_base.h"
 
 namespace docwire::xml
 {
@@ -31,6 +33,13 @@ class attribute_ref
  private:
     std::reference_wrapper<const reader<safety_level>> m_reader;
 };
+
+template<typename T, safety_policy safety_level>
+requires convert::conversion_implementation_exists<T, std::string_view>
+std::optional<T> convert_impl(const attribute_ref<safety_level>& attr, convert::dest_type_tag<T>) noexcept
+{
+    return convert::try_to<T>(attr.value());
+}
 
 }
 

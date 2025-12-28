@@ -16,6 +16,7 @@
 #include "log_cerr_redirection.h"
 #include "log_entry.h"
 #include "log_forward.h"
+#include "log_json_stream_sink.h"
 #include "log_scope.h"
 // IWYU pragma: end_exports
 

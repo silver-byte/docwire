@@ -13,6 +13,7 @@
 #define DOCWIRE_XML_H
 
 // IWYU pragma: begin_exports
+#include "xml_attributes.h"
 #include "xml_reader.h"
 #include "xml_node_ref.h"
 #include "xml_children.h"

@@ -168,6 +168,11 @@
 */
 
 /**
+ * @example xml_parsing_example.cpp
+ * This example demonstrates how to parse XML documents using the DocWire SDK modern C++ API.
+*/
+
+/**
  * @namespace docwire
  * @brief The main namespace for the DocWire SDK.
  */

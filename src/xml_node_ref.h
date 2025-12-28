@@ -16,6 +16,7 @@
 #include "xml_iterator_state.h"
 #include "not_null.h"
 #include "ranged.h"
+#include "convert_base.h"
 
 namespace docwire::xml
 {
@@ -37,6 +38,13 @@ public:
 private:
     not_null<std::shared_ptr<iterator_state<safety_level>>, safety_level> m_state;
 };
+
+template<typename T, safety_policy safety_level>
+requires convert::conversion_implementation_exists<T, std::string_view>
+std::optional<T> convert_impl(const node_ref<safety_level>& node, convert::dest_type_tag<T>) noexcept
+{
+    return convert::try_to<T>(node.string_value());
+}
 
 }
 

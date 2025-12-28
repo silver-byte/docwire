@@ -59,7 +59,7 @@ attributes_view<safety_level> attributes(const node_ref<safety_level>& node)
  * @return An std::optional<std::string_view> containing the attribute's value if found, otherwise std::nullopt.
  */
 template<safety_policy safety_level>
-std::optional<std::string_view> attribute_value(const node_ref<safety_level>& node, std::string_view name)
+checked<std::optional<std::string_view>, safety_level> attribute_value(const node_ref<safety_level>& node, std::string_view name)
 {
     auto attrs = attributes<safety_level>(node);
     if (auto it = std::ranges::find_if(attrs, [name](const auto& attr) { return attr.name() == name; }); it != attrs.end())
@@ -76,7 +76,7 @@ std::optional<std::string_view> attribute_value(const node_ref<safety_level>& no
  */
 template<typename T, safety_policy safety_level>
 requires convert::conversion_implementation_exists<T, std::string_view>
-std::optional<T> attribute_value(const node_ref<safety_level>& node, std::string_view name)
+checked<std::optional<T>, safety_level> attribute_value(const node_ref<safety_level>& node, std::string_view name)
 {
     if (auto sv = attribute_value(node, name))
         return convert::try_to<T>(*sv);
