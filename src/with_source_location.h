@@ -16,8 +16,11 @@
 
 namespace docwire::detail
 {
-    // This helper struct is implicitly constructed from a value of type T.
-    // Its purpose is to capture the source location of the call site.
+    /**
+     * @brief Helper struct to capture the source location of a call site.
+     * This is implicitly constructed from a value of type T.
+     * @tparam T The type of the value being wrapped.
+     */
     template <typename T>
     struct with_source_location
     {

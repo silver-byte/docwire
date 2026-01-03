@@ -20,9 +20,17 @@ namespace docwire::convert {
 
 // Concept for types supported by std::from_chars in C++20.
 // This excludes bool, which is only supported from C++23.
+/**
+ * @brief Concept checking if a type is compatible with std::from_chars.
+ */
 template<typename T>
 concept is_from_chars_compatible = (std::is_integral_v<T> && !std::is_same_v<T, bool>) || std::is_floating_point_v<T>;
 
+/**
+ * @brief Converts a string-like value to a numeric type using std::from_chars.
+ * @tparam To The target numeric type.
+ * @tparam From The source string type (must be convertible to string_view).
+ */
 template<is_from_chars_compatible To, std::convertible_to<std::string_view> From>
 requires (noexcept(std::string_view(std::declval<const From&>())))
 std::optional<To> convert_impl(const From& s, dest_type_tag<To>) noexcept

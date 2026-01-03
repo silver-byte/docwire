@@ -21,37 +21,62 @@
 
 namespace docwire
 {
+/**
+ * @brief Contains definitions for document attributes and metadata.
+ */
 namespace attributes
 {
 
+/**
+ * @brief Represents CSS-like styling information for document elements.
+ */
 struct Styling
 {
+  /// List of CSS classes.
   std::vector<std::string> classes;
+  /// Unique identifier for the element.
   std::string id;
+  /// Inline style string.
   std::string style;  
 };
 
 struct Email
 {
+  /// The sender's email address.
   std::string from;
+  /// The date and time the email was sent.
 	std::chrono::sys_seconds date;
+  /// The recipient's email address.
   std::optional<std::string> to;
+  /// The subject of the email.
 	std::optional<std::string> subject;
+  /// The email address to reply to.
   std::optional<std::string> reply_to;
+  /// The sender's name or address.
   std::optional<std::string> sender;
 };
 
 struct Metadata
 {
+  /// The author of the document.
   std::optional<std::string> author;
+  /// The creation date and time of the document.
   std::optional<std::chrono::sys_seconds> creation_date;
+  /// The user who last modified the document.
   std::optional<std::string> last_modified_by;
+  /// The last modification date and time of the document.
   std::optional<std::chrono::sys_seconds> last_modification_date;
+  /// The number of pages in the document.
   std::optional<size_t> page_count;
+  /// The number of words in the document.
   std::optional<size_t> word_count;
+  /// Email-specific attributes if applicable.
   std::optional<Email> email_attrs;
 };
 
+/**
+ * @brief Concept for types that have styling information.
+ */
 template<class T>
 concept WithStyling = requires(T tag) {
   {tag.styling} -> std::convertible_to<Styling>;

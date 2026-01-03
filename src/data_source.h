@@ -28,21 +28,25 @@
 namespace docwire
 {
 
+/// Wrapper for a shared pointer to a seekable input stream.
 struct seekable_stream_ptr
 {
   std::shared_ptr<std::istream> v;
 };
 
+/// Wrapper for a shared pointer to an unseekable input stream.
 struct unseekable_stream_ptr
 {
   std::shared_ptr<std::istream> v;
 };
 
+/// Wrapper for a length limit value.
 struct length_limit
 {
 	size_t v;
 };
 
+/// Wrapper for a MIME type string.
 struct mime_type
 {
 	std::string v;
@@ -53,6 +57,9 @@ struct mime_type
 
 namespace std {
 template <>
+/**
+ * @brief Specialization of std::hash for docwire::mime_type.
+ */
 struct hash<docwire::mime_type>
 {
 	size_t operator()(const docwire::mime_type& mt) const
@@ -65,6 +72,9 @@ struct hash<docwire::mime_type>
 namespace docwire
 {
 
+/**
+ * @brief Represents the confidence level of a detected MIME type.
+ */
 enum class confidence
 {
 	none,
@@ -75,6 +85,9 @@ enum class confidence
 	highest
 };
 
+/**
+ * @brief Concept matching types that can be used to initialize a data_source.
+ */
 template <typename T>
 concept data_source_compatible_type =
 	std::is_same_v<T, std::filesystem::path> ||
@@ -85,11 +98,19 @@ concept data_source_compatible_type =
 	std::is_same_v<T, seekable_stream_ptr> ||
 	std::is_same_v<T, unseekable_stream_ptr>;
 
+/**
+ * @brief Concept matching reference-qualified types compatible with data_source.
+ */
 template <typename T>
 concept data_source_compatible_type_ref_qualified = data_source_compatible_type<std::remove_reference_t<T>>;
 
+/**
+ * @brief A helper for creating a visitor from a set of lambdas, used for visiting `std::variant`.
+ * @tparam Ts The lambda types.
+ */
 template<class... Ts>
 struct overloaded : Ts... { using Ts::operator()...; };
+// Deduction guide for `overloaded`.
 template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
 /**
@@ -106,27 +127,50 @@ template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 class DOCWIRE_CORE_EXPORT data_source
 {
 	public:
-		
+		/**
+		 * @brief Constructs a data_source from a compatible type.
+		 * @param source The data source (e.g., path, string, vector<byte>).
+		 */
 		template <data_source_compatible_type T>
 		explicit data_source(const T& source)
 			: m_source{source}
 		{}
 
+		/**
+		 * @brief Constructs a data_source by moving from a compatible type.
+		 * @param source The data source to move from.
+		 */
 		template <data_source_compatible_type T>
 		explicit data_source(T&& source)
 			: m_source{std::move(source)}
 		{}
 
+		/**
+		 * @brief Constructs a data_source with an explicit file extension.
+		 * @param source The data source.
+		 * @param file_extension The file extension to associate with the data.
+		 */
 		template <data_source_compatible_type T>
 		explicit data_source(const T& source, file_extension file_extension)
 			: m_source{source}, m_file_extension{file_extension}
 		{}
 
+		/**
+		 * @brief Constructs a data_source by moving, with an explicit file extension.
+		 * @param source The data source to move from.
+		 * @param file_extension The file extension to associate with the data.
+		 */
 		template <data_source_compatible_type T>
 		explicit data_source(T&& source, file_extension file_extension)
 			: m_source{std::move(source)}, m_file_extension{file_extension}
 		{}
 
+		/**
+		 * @brief Constructs a data_source with an initial MIME type and confidence.
+		 * @param source The data source.
+		 * @param mime_type The initial MIME type.
+		 * @param mime_type_confidence The confidence level for the initial MIME type.
+		 */
 		template <data_source_compatible_type T>
 		explicit data_source(const T& source, mime_type mime_type, confidence mime_type_confidence)
 			: m_source{source}
@@ -134,6 +178,12 @@ class DOCWIRE_CORE_EXPORT data_source
 			add_mime_type(mime_type, mime_type_confidence);
 		}
 
+		/**
+		 * @brief Constructs a data_source by moving, with an initial MIME type and confidence.
+		 * @param source The data source to move from.
+		 * @param mime_type The initial MIME type.
+		 * @param mime_type_confidence The confidence level for the initial MIME type.
+		 */
 		template <data_source_compatible_type T>
 		explicit data_source(T&& source, mime_type mime_type, confidence mime_type_confidence)
 			: m_source{std::move(source)}
@@ -141,23 +191,46 @@ class DOCWIRE_CORE_EXPORT data_source
 			add_mime_type(mime_type, mime_type_confidence);
 		}
 
+		/**
+		 * @brief Returns the content as a span of bytes.
+		 * @param limit Optional limit on the number of bytes to return.
+		 * @return A span over the data.
+		 */
 		std::span<const std::byte> span(std::optional<length_limit> limit = std::nullopt) const;
 
+		/**
+		 * @brief Returns the content as a string.
+		 * @param limit Optional limit on the number of characters to return.
+		 * @return A string containing the data.
+		 */
 		std::string string(std::optional<length_limit> limit = std::nullopt) const;
 
+		/**
+		 * @brief Returns the content as a string_view.
+		 * 
+		 * This method avoids memory allocation if the underlying source is already in memory
+		 * (e.g. string, vector<byte>). If the source is a stream or file, it may load data.
+		 * 
+		 * @param limit Optional limit on the number of characters to return.
+		 */
 		std::string_view string_view(std::optional<length_limit> limit = std::nullopt) const;
 
+		/// Returns an input stream for reading the data.
 		std::shared_ptr<std::istream> istream() const;
 
+		/// Returns the file path if the source is a file, otherwise std::nullopt.
 		std::optional<std::filesystem::path> path() const;
 
+		/// Returns the file extension if available.
 		std::optional<docwire::file_extension> file_extension() const;
 
+		/// Returns the unique identifier for this data source.
 		unique_identifier id() const
 		{
 			return m_id;
 		}
 
+		/// Returns the MIME type with the highest confidence and its confidence level.
 		std::optional<std::pair<mime_type, confidence>> highest_confidence_mime_type_info() const
 		{
 			auto hc_mt_it = std::max_element(mime_types.begin(), mime_types.end(),
@@ -171,6 +244,7 @@ class DOCWIRE_CORE_EXPORT data_source
 				return std::nullopt;
 		}
 
+		/// Returns the MIME type with the highest confidence.
 		std::optional<mime_type> highest_confidence_mime_type() const
 		{
 			auto hc_mt = highest_confidence_mime_type_info();
@@ -180,6 +254,7 @@ class DOCWIRE_CORE_EXPORT data_source
 				return std::nullopt;
 		}
 
+		/// Returns the highest confidence level found among detected MIME types.
 		confidence highest_mime_type_confidence() const
 		{
 			auto hc_mt = highest_confidence_mime_type_info();
@@ -189,9 +264,15 @@ class DOCWIRE_CORE_EXPORT data_source
 				return confidence::none;
 		}
 
+		/**
+		 * @brief Checks if the highest confidence mime type is present in the given list.
+		 * @param mts The list of mime types to check against.
+		 */
 		bool has_highest_confidence_mime_type_in(const std::vector<mime_type>& mts) const;
+		/// Asserts that the data source is not encrypted.
 		void assert_not_encrypted() const;
 
+		/// Returns the confidence level for a specific MIME type.
 		confidence mime_type_confidence(mime_type mt) const
 		{
     		auto mt_iter = mime_types.find(mt);
@@ -201,6 +282,11 @@ class DOCWIRE_CORE_EXPORT data_source
 				return mt_iter->second;
 		}
 
+		/**
+		 * @brief Adds a mime type with a confidence level.
+		 * @param mt The mime type to add.
+		 * @param c The confidence level.
+		 */
 		void add_mime_type(mime_type mt, confidence c)
 		{
 			auto [existing_it, inserted] = mime_types.try_emplace(mt, c);
@@ -208,6 +294,7 @@ class DOCWIRE_CORE_EXPORT data_source
 				existing_it->second = c;
 		}
 
+		/// Map of detected MIME types and their confidence levels.
 		std::unordered_map<mime_type, confidence> mime_types;
 
 	private:

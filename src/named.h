@@ -13,14 +13,23 @@
 #include <string_view>
 #include <utility>
 
+/**
+ * @brief Utilities for named parameters.
+ */
 namespace docwire::named
 {
+    /**
+     * @brief A named value wrapper.
+     */
     template <typename T>
     struct value
     {
+        /// The name of the parameter.
         std::string_view name;
+        /// The value of the parameter.
         T value;
 
+        /// Support for structured bindings.
         template <size_t I>
         [[nodiscard]] constexpr decltype(auto) get() & noexcept
         {
@@ -43,6 +52,9 @@ namespace docwire::named
         }
     };
 
+    /**
+     * @brief A helper to create named values using assignment syntax.
+     */
     struct variable
     {
         const std::string_view name;
@@ -56,6 +68,10 @@ namespace docwire::named
 
     inline namespace literals
     {
+        /**
+         * @brief Literal operator to create named variables.
+         * @example "my_var"_v = 42
+         */
         [[nodiscard]] constexpr variable operator""_v(const char* str, size_t len) noexcept
         {
             return {std::string_view{str, len}};
@@ -71,9 +87,15 @@ namespace docwire
 
 namespace std
 {
+    /**
+     * @brief Specialization of `std::tuple_size` for `docwire::named::value` to enable structured bindings.
+     */
     template <typename T>
     struct tuple_size<docwire::named::value<T>> : std::integral_constant<size_t, 2> {};
 
+    /**
+     * @brief Specialization of `std::tuple_element` for `docwire::named::value` to enable structured bindings.
+     */
     template <size_t I, typename T>
     struct tuple_element<I, docwire::named::value<T>> : std::conditional<I == 0, std::string_view, T> {};
 }

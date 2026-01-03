@@ -30,11 +30,18 @@ constexpr inline guaranteed_t guaranteed;
  *
  * In `safe` mode, the constructor checks for null and throws if the invariant is violated.
  * In `relaxed` mode, this wrapper is a zero-cost abstraction with no runtime checks.
+ *
+ * @tparam Ptr The underlying pointer type.
+ * @tparam safety_level The safety policy to apply.
+ * @sa checked
  */
 template <typename Ptr, safety_policy safety_level = default_safety_level>
 class not_null
 {
-public: // Constructor that enforces the non-null invariant in safe mode.
+public:
+    /**
+     * @brief Constructs from a pointer, enforcing the non-null invariant in strict mode.
+     */
     not_null(Ptr p) : m_ptr(std::move(p))
     {
         enforce<safety_level>(m_ptr != nullptr, "not_null constructed with a null pointer.");
@@ -57,6 +64,7 @@ public: // Constructor that enforces the non-null invariant in safe mode.
     not_null(std::nullptr_t) = delete;
     not_null& operator=(std::nullptr_t) = delete;
 
+    /// Returns the raw pointer.
     auto get() const requires requires(const Ptr& p) { p.get(); } { return m_ptr.get(); }
     auto get() requires requires(Ptr& p) { p.get(); } { return m_ptr.get(); }
 

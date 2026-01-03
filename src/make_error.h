@@ -20,6 +20,12 @@
 namespace docwire::errors
 {
 
+/**
+ * @brief Creates an error object from a tuple of context information.
+ * @param location The source location where the error occurred.
+ * @param context_tuple A tuple containing context data.
+ * @return The constructed error object.
+ */
 template<typename... Context>
 auto make_error_from_tuple(const source_location& location, std::tuple<Context...>&& context_tuple)
 {
@@ -28,6 +34,12 @@ auto make_error_from_tuple(const source_location& location, std::tuple<Context..
     }, context_tuple);
 }
 
+/**
+ * @brief Creates an exception_ptr containing an error object from a tuple of context information.
+ * @param location The source location where the error occurred.
+ * @param context_tuple A tuple containing context data.
+ * @return An exception_ptr to the constructed error.
+ */
 template<typename... Context>
 auto make_error_ptr_from_tuple(const source_location& location, std::tuple<Context...>&& context_tuple)
 {

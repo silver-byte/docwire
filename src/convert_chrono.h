@@ -21,11 +21,23 @@
 namespace docwire::convert
 {
 
+/**
+ * @brief Converts an ISO 8601 date string to sys_seconds.
+ */
 DOCWIRE_CORE_EXPORT std::optional<std::chrono::sys_seconds> convert_impl(with::date_format::iso8601 s, dest_type_tag<std::chrono::sys_seconds>) noexcept;
+/**
+ * @brief Converts a legacy OpenOffice date string to sys_seconds.
+ */
 DOCWIRE_CORE_EXPORT std::optional<std::chrono::sys_seconds> convert_impl(with::date_format::openoffice_legacy s, dest_type_tag<std::chrono::sys_seconds>) noexcept;
+/**
+ * @brief Converts an ASN.1 date string to sys_seconds.
+ */
 DOCWIRE_CORE_EXPORT std::optional<std::chrono::sys_seconds> convert_impl(with::date_format::asn1 s, dest_type_tag<std::chrono::sys_seconds>) noexcept;
 
 // Formatting sys_seconds to string
+/**
+ * @brief Converts sys_seconds to a string representation.
+ */
 DOCWIRE_CORE_EXPORT std::optional<std::string> convert_impl(std::chrono::sys_seconds tp, dest_type_tag<std::string>) noexcept;
 
 } // namespace docwire::convert

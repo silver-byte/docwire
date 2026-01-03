@@ -17,10 +17,18 @@
 namespace docwire::xml
 {
 
+/**
+ * @brief Shared state for XML iterators to coordinate traversal.
+ * @tparam safety_level The safety policy.
+ */
 template <safety_policy safety_level>
 struct iterator_state
 {
+	/**
+	 * @brief Constructs the state with a reference to the XML reader.
+	 */
 	explicit iterator_state(reader<safety_level>& reader) : xml_reader(reader) {}
+	/// Reference to the underlying XML reader.
 	reader<safety_level>& xml_reader;
 
 	/**

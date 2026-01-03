@@ -17,6 +17,9 @@
 namespace with
 {
 
+/**
+ * @brief A wrapper to indicate that partial matching is allowed during conversion.
+ */
 struct partial_match
 {
     std::string_view v;

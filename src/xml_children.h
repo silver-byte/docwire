@@ -19,6 +19,14 @@
 namespace docwire::xml
 {
 
+/**
+ * @brief A view over the direct children of an XML node.
+ *
+ * @tparam safety_level The safety policy to use.
+ * @warning This class relies on a single-pass XML reader. Advancing the reader invalidates this view and any iterators derived from it.
+ * @sa descendants_view
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
+ */
 template <safety_policy safety_level = default_safety_level>
 class children_view
 {
@@ -33,6 +41,11 @@ public:
         return {};
     }
 
+    /**
+     * @brief Constructs a view from an iterator state and depth.
+     * @param state The shared iterator state.
+     * @param depth The target depth for children.
+     */
     explicit children_view(not_null<std::shared_ptr<iterator_state<safety_level>>, safety_level> state, int depth)
         : m_state(std::move(state)), m_depth(depth) {}
 
@@ -41,6 +54,9 @@ private:
 	int m_depth;
 };
 
+/**
+ * @brief Iterator for traversing direct child nodes.
+ */
 template <safety_policy safety_level>
 class children_view<safety_level>::iterator final
 {
@@ -91,12 +107,26 @@ private:
     typename descendants_view<safety_level>::iterator m_desc_iter;
 };
 
+/**
+ * @brief Returns a view of the direct children of the given node.
+ * @tparam safety_level The safety policy to use.
+ * @param node The node to retrieve children for.
+ * @warning This function relies on a single-pass XML reader.
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
+ */
 template<safety_policy safety_level>
 children_view<safety_level> children(const node_ref<safety_level>& node)
 {
     return children_view<safety_level>{node.state(), node.depth() + 1};
 }
 
+/**
+ * @brief Returns a view of the top-level children in the reader.
+ * @tparam safety_level The safety policy to use.
+ * @param reader The XML reader to traverse.
+ * @warning This function relies on a single-pass XML reader.
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
+ */
 template<safety_policy safety_level>
 children_view<safety_level> children(reader<safety_level>& reader)
 {

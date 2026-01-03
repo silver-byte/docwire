@@ -15,7 +15,15 @@
 namespace docwire
 {
 
-enum class safety_policy { strict, relaxed };
+/**
+ * @brief Defines the safety policy for operations.
+ */
+enum class safety_policy { 
+    /// Perform runtime checks and throw exceptions on violations.
+    strict, 
+    /// Skip runtime checks for performance; undefined behavior on violations.
+    relaxed 
+};
 using enum safety_policy;
 constexpr inline safety_policy default_safety_level = strict;
 

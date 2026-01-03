@@ -18,6 +18,9 @@ namespace docwire::log {
 
 namespace detail {
 
+/**
+ * @brief RAII class for logging scope entry and exit.
+ */
 template <typename... Args>
 class scope {
 public:
@@ -46,6 +49,9 @@ private:
 };
 
 // An empty struct to be used when the log scope should be completely compiled out.
+/**
+ * @brief A no-op scope class used when logging is disabled or in release builds.
+ */
 struct empty_scope {
     // A constructor that accepts any arguments and does nothing.
     // This is designed to be a 'sink' for any arguments passed from the log_scope macro
@@ -57,8 +63,10 @@ struct empty_scope {
 };
 
 #ifdef NDEBUG
+/// Constant indicating if the build is debug.
 constexpr bool is_debug_build = false;
 #else
+/// Constant indicating if the build is debug.
 constexpr bool is_debug_build = true;
 #endif
 
@@ -66,6 +74,12 @@ constexpr bool is_debug_build = true;
 
 // The public-facing `scope` class template.
 // It inherits from the real implementation or an empty struct based on build mode.
+/**
+ * @brief Represents a logging scope.
+ * 
+ * In debug builds (or if logging is enabled), this logs entry and exit of the scope.
+ * In release builds, it may compile to a no-op depending on configuration.
+ */
 template <typename... Args>
 class scope : public std::conditional_t< // Note: This is now the public `scope`
     detail::is_debug_build || detail::should_log_in_release<Args...>(),

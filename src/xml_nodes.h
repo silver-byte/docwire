@@ -22,6 +22,12 @@
 namespace docwire::xml
 {
 
+/**
+ * @brief A view over a sequence of XML nodes.
+ * @tparam safety_level The safety policy.
+ * @warning This view relies on a single-pass XML reader.
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
+ */
 template<safety_policy safety_level = default_safety_level>
 class nodes_view
 {
@@ -30,12 +36,19 @@ public:
 	iterator begin() const { return iterator{m_state}; }
 	sentinel end() const { return {}; }
 
+	/**
+	 * @brief Constructs a view from an iterator state.
+	 * @param state The shared iterator state.
+	 */
 	explicit nodes_view(not_null<std::shared_ptr<iterator_state<safety_level>>, safety_level> state)
 		: m_state(std::move(state)) {}
 private:
 	not_null<std::shared_ptr<iterator_state<safety_level>>, safety_level> m_state;
 };
 
+/**
+ * @brief Iterator for traversing a sequence of XML nodes.
+ */
 template<safety_policy safety_level>
 class nodes_view<safety_level>::iterator
 {
@@ -65,6 +78,9 @@ public:
 	{
 		++(*this);
 	}
+	/**
+	 * @brief Resets the iterator to the end state (invalidates it).
+	 */
 	void reset() { m_node.reset(); }
 
 private:
@@ -77,12 +93,24 @@ private:
 	checked<std::optional<node_ref<safety_level>>, safety_level> m_node;
 };
 
+/**
+ * @brief Creates a view of nodes starting from the given node's state.
+ * @tparam safety_level The safety policy.
+ * @param node The reference node.
+ * @warning This function relies on a single-pass XML reader.
+ */
 template<safety_policy safety_level>
 nodes_view<safety_level> nodes(const node_ref<safety_level>& node)
 {
 	return nodes_view<safety_level>{node.state()};
 }
 
+/**
+ * @brief Creates a view of nodes from the reader.
+ * @tparam safety_level The safety policy.
+ * @param reader The XML reader.
+ * @warning This function relies on a single-pass XML reader.
+ */
 template<safety_policy safety_level>
 nodes_view<safety_level> nodes(reader<safety_level>& reader)
 {

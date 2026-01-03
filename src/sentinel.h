@@ -17,6 +17,9 @@
 namespace docwire
 {
 
+/**
+ * @brief A sentinel type used to define the end of a range or view.
+ */
 struct DOCWIRE_CORE_EXPORT sentinel {};
 
 } // namespace docwire

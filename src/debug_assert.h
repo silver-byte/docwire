@@ -21,6 +21,9 @@
 #ifndef NDEBUG
 namespace docwire::errors
 {
+    /**
+     * @brief Terminates the program with a panic message in debug builds.
+     */
     [[noreturn]] DOCWIRE_CORE_EXPORT void panic(std::exception_ptr eptr);
 }
 #endif // NDEBUG
@@ -30,6 +33,16 @@ namespace docwire
 
 #ifndef NDEBUG
 
+/**
+ * @brief Asserts a condition in debug builds.
+ * 
+ * In debug builds (NDEBUG not defined), if the condition is false, the program terminates
+ * with a panic message containing the provided context.
+ * In release builds, this function does nothing.
+ * 
+ * @param condition The condition to check.
+ * @param context Additional context information to log if the assertion fails.
+ */
 template<typename... Context>
 void debug_assert(detail::with_source_location<bool> condition, Context&&... context)
 {

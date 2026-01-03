@@ -35,6 +35,11 @@ inline constexpr unlimited_t unlimited;
  * In `strict` mode, the constructor checks if the value is within the specified
  * range and throws an exception if the invariant is violated.
  * In `relaxed` mode, this wrapper is a zero-cost abstraction with no runtime checks.
+ *
+ * @tparam Min The minimum allowed value (or unlimited).
+ * @tparam Max The maximum allowed value (or unlimited).
+ * @tparam T The underlying numeric type.
+ * @tparam safety_level The safety policy to apply.
  */
 template <auto Min, auto Max, typename T, safety_policy safety_level = default_safety_level>
 class ranged
@@ -48,6 +53,10 @@ class ranged
     static_assert(std::is_same_v<std::remove_const_t<decltype(Max)>, unlimited_t> || std::is_convertible_v<decltype(Max), T>,
                   "The Max bound must be convertible to the ranged type T.");
 public:
+    /**
+     * @brief Constructs a ranged value, enforcing the bounds in strict mode.
+     * @param value The value to wrap.
+     */
     ranged(T value) : m_value(value)
     {
         if constexpr (!std::is_same_v<std::remove_const_t<decltype(Min)>, unlimited_t>) {
@@ -58,6 +67,7 @@ public:
         }
     }
 
+    /// Implicit conversion to the underlying type.
     operator T() const { return m_value; }
     T get() const { return m_value; }
 

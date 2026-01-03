@@ -20,6 +20,10 @@
 namespace docwire
 {
 
+/**
+ * @brief A parser for ODF and OOXML document formats.
+ * @tparam safety_level The safety policy to use.
+ */
 template <safety_policy safety_level = default_safety_level>
 class DOCWIRE_ODF_OOXML_EXPORT ODFOOXMLParser : public CommonXMLDocumentParser<safety_level>, public with_pimpl<ODFOOXMLParser<safety_level>>
 {
@@ -48,10 +52,21 @@ class DOCWIRE_ODF_OOXML_EXPORT ODFOOXMLParser : public CommonXMLDocumentParser<s
 
 	public:
 
+    /**
+     * @brief Parses the given data source.
+     * @param data The data source to parse.
+     * @param emit_message Callback to emit messages (e.g., document elements).
+     */
     void parse(const data_source& data, const message_callbacks& emit_message);
 
-
+    /**
+     * @brief Default constructor.
+     */
     ODFOOXMLParser();
+    /**
+     * @brief Processes a message in the parsing chain.
+     * @return The continuation status.
+     */
     continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
     bool is_leaf() const override { return false; }
 };

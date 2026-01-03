@@ -19,9 +19,15 @@
 #include "source_location.h"
 #include "type_name.h"
 
+/**
+ * @brief Namespace for type conversion utilities.
+ */
 namespace docwire::convert
 {
 
+/**
+ * @brief A tag type used for dispatching `convert_impl` overloads based on the destination type.
+ */
 template<typename T>
 struct dest_type_tag {};
 
@@ -47,6 +53,13 @@ inline constexpr convert_cpo convert_cpo;
 
 } // namespace detail
 
+/**
+ * @brief Tries to convert a value of type From to type To.
+ * @tparam To The target type.
+ * @tparam From The source type.
+ * @param from The value to convert.
+ * @return An optional containing the converted value if successful, or std::nullopt otherwise.
+ */
 template<typename To, typename From>
 requires conversion_implementation_exists<To, From>
 constexpr std::optional<To> try_to(const From& from) noexcept
@@ -54,6 +67,13 @@ constexpr std::optional<To> try_to(const From& from) noexcept
 	return detail::convert_cpo.template operator()<To, From>(from);
 }
 
+/**
+ * @brief Converts a value of type From to type To.
+ * @tparam To The target type.
+ * @tparam From The source type.
+ * @param from The value to convert.
+ * @throws docwire::error with docwire::errors::uninterpretable_data tag attached if the conversion fails.
+ */
 template<typename To, typename From>
 requires conversion_implementation_exists<To, From>
 To to(const From& from)

@@ -21,21 +21,40 @@
 #include <algorithm>
 #include <optional>
 
+/**
+ * @brief XML processing utilities.
+ */
 namespace docwire::xml
 {
 
+/**
+ * @brief A view over the attributes of an XML node.
+ *
+ * @tparam safety_level The safety policy to use.
+ * @warning This class relies on a single-pass XML reader. Advancing the reader invalidates this view and any iterators derived from it.
+ * @sa xml::reader
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
+ */
 template <safety_policy safety_level = default_safety_level>
 class attributes_view
 {
 public:
     class iterator;
     iterator begin() const { return iterator{m_reader}; }
+    /**
+     * @brief Destructor.
+     * Moves the reader back to the element containing the attributes to ensure consistent state for further parsing.
+     */
     ~attributes_view() noexcept
     {
         m_reader.get().move_to_element();
     }
     sentinel end() const { return {}; }
 
+    /**
+     * @brief Constructs a view from a reader.
+     * @param reader The XML reader positioned at the element.
+     */
     explicit attributes_view(reader<safety_level>& reader) : m_reader(reader) {}
 private:
     std::reference_wrapper<reader<safety_level>> m_reader;
@@ -44,7 +63,10 @@ private:
 /**
  * @brief A factory function to create an attributes_view with a specified safety policy.
  * @param node The XML node whose attributes will be viewed.
+ * @tparam safety_level The safety policy to use.
+ * @warning This function relies on a single-pass XML reader.
  * @return An attributes_view for the given node.
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
  */
 template<safety_policy safety_level>
 attributes_view<safety_level> attributes(const node_ref<safety_level>& node)
@@ -54,9 +76,12 @@ attributes_view<safety_level> attributes(const node_ref<safety_level>& node)
 
 /**
  * @brief A convenience helper to find an attribute by name.
+ * @tparam safety_level The safety policy to use.
  * @param node The XML node to search within.
  * @param name The name of the attribute to find.
+ * @warning This function relies on a single-pass XML reader.
  * @return An std::optional<std::string_view> containing the attribute's value if found, otherwise std::nullopt.
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
  */
 template<safety_policy safety_level>
 checked<std::optional<std::string_view>, safety_level> attribute_value(const node_ref<safety_level>& node, std::string_view name)
@@ -69,10 +94,13 @@ checked<std::optional<std::string_view>, safety_level> attribute_value(const nod
 
 /**
  * @brief A convenience helper to find an attribute by name and convert its value to a specific type.
+ * @tparam T The target type for conversion.
  * @tparam safety_level The safety policy for the node reference and attribute access.
  * @param node The XML node to search within.
  * @param name The name of the attribute to find.
+ * @warning This function relies on a single-pass XML reader.
  * @return An std::optional<T> containing the converted value if the attribute is found and conversion succeeds, otherwise std::nullopt.
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
  */
 template<typename T, safety_policy safety_level>
 requires convert::conversion_implementation_exists<T, std::string_view>
@@ -83,6 +111,9 @@ checked<std::optional<T>, safety_level> attribute_value(const node_ref<safety_le
     return std::nullopt;
 }
 
+/**
+ * @brief Iterator for traversing XML attributes.
+ */
 template<safety_policy safety_level>
 class attributes_view<safety_level>::iterator
 {
