@@ -2270,6 +2270,14 @@ TEST(base64, encode)
     ASSERT_EQ(encoded, "dGVzdA==");
 }
 
+TEST(base64, decode)
+{
+    const std::string input_str { "dGVzdA==" };
+    std::vector<std::byte> decoded = base64::decode(input_str);
+    std::string decoded_str { reinterpret_cast<char*>(decoded.data()), decoded.size() };
+    ASSERT_EQ(decoded_str, "test");
+}
+
 TEST(tuple_utils, subrange)
 {
     static_assert(std::is_same_v<
