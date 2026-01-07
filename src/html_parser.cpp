@@ -23,6 +23,7 @@
 #include <regex>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include "base64.h"
 #include "charset_converter.h"
 #include "convert_chrono.h" // IWYU pragma: keep
 #include "data_source.h"
@@ -348,6 +349,31 @@ const std::vector<mime_type> supported_mime_types =
 	mime_type{"application/xhtml+xml"},
 	mime_type{"application/vnd.pwg-xhtml-print+xml"}
 };
+
+data_source create_image_source(const std::string& src)
+{
+	if (boost::algorithm::starts_with(src, "data:"))
+	{
+		size_t comma_pos = src.find(',');
+		throw_if(comma_pos == std::string::npos, "Invalid data URL: missing comma");
+
+		std::string meta = src.substr(5, comma_pos - 5);
+		throw_if(meta.find(";base64") == std::string::npos, "Invalid data URL: missing base64 indicator");
+
+		std::string_view base64_data = std::string_view(src).substr(comma_pos + 1);
+		std::vector<std::byte> decoded_data = base64::decode(base64_data);
+
+		throw_if(decoded_data.empty(), "Invalid data URL: empty data");
+
+		std::string mime_type_str = "application/octet-stream";
+		size_t semicolon_pos = meta.find(';');
+		if (semicolon_pos != std::string::npos && semicolon_pos > 0)
+			mime_type_str = meta.substr(0, semicolon_pos);
+
+		return data_source{std::move(decoded_data), mime_type{mime_type_str}, confidence::highest};
+	}
+	return data_source{std::filesystem::path{src}};
+}
 
 } // unnamed namespace
 
@@ -714,13 +740,20 @@ void pimpl_impl<HTMLParser>::process_tag(const lxb_dom_node_t* node, bool is_clo
 			const lxb_char_t* alt_attr = lxb_dom_element_get_attribute(const_cast<lxb_dom_element_t*>(element), (const lxb_char_t *)"alt", 3, nullptr);
 			if (alt_attr)
 				alt = std::string((const char*)alt_attr);
-			document::Image image
+
+			try
 			{
-				.source = data_source{std::filesystem::path{src}}, // TODO: handle data: urls
-				.alt = alt,
-				.styling = html_node_styling(node)
-			};
-			emit_message_back(std::move(image));
+				emit_message_back(document::Image
+				{
+					.source = create_image_source(src),
+					.alt = alt,
+					.styling = html_node_styling(node)
+				});
+			}
+			catch (const std::exception&)
+			{
+				emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process image")));
+			}
 		}
 		else if (tag_id == LXB_TAG_TABLE)
 		{

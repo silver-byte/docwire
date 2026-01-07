@@ -158,7 +158,7 @@ std::vector<std::string> get_misc_test_files_list() {
         "diacritical_marks-pol.png", "paragraphs-eng.png",
         "multilang-chi_sim-fra-deu-eng.png", "multilang-chi_tra-rus-jpn.png",
         "multilang-spa-lat-grc.png", "multilang-hin-san-swa-kor-eng.png",
-        "embedded_images.pdf"
+        "embedded_images.pdf", "embedded_images.html"
     };
 }
 
