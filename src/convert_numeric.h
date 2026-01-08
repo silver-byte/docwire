@@ -15,6 +15,7 @@
 #include "convert_base.h"
 #include <charconv>
 #include "with_partial_match.h"
+#include "core_export.h"
 
 namespace docwire::convert {
 
@@ -34,9 +35,9 @@ concept std_from_chars_available = requires(const char* first, const char* last,
     { std::from_chars(first, last, value) } -> std::same_as<std::from_chars_result>;
 };
 
-std::optional<float> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<float>) noexcept;
-std::optional<double> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<double>) noexcept;
-std::optional<long double> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<long double>) noexcept;
+DOCWIRE_CORE_EXPORT std::optional<float> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<float>) noexcept;
+DOCWIRE_CORE_EXPORT std::optional<double> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<double>) noexcept;
+DOCWIRE_CORE_EXPORT std::optional<long double> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<long double>) noexcept;
 
 } // namespace detail
 
