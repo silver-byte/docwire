@@ -14,6 +14,7 @@
 
 #include <optional>
 #include "checked.h"
+#include <ranges>
 #include "sentinel.h"
 #include "xml_node_ref.h"
 #include "xml_iterator_state.h"
@@ -29,7 +30,7 @@ namespace docwire::xml
  * @sa @ref xml_parsing_example.cpp "XML parsing example"
  */
 template<safety_policy safety_level = default_safety_level>
-class nodes_view
+class nodes_view : public std::ranges::view_base
 {
 public:
 	class iterator;

@@ -32,7 +32,7 @@ int main()
         xml::reader reader(xml_data); // You can use xml::reader<relaxed> instead for maximum speed (skips safety checks)
 
         // Filter nodes using C++20 views
-        auto products = xml::children(xml::root_element(reader)) 
+        auto products = xml::children(xml::root_element(reader))
                       | std::views::filter([](auto n) { return n.name() == "product"; });
 
         for (auto product_node : products)

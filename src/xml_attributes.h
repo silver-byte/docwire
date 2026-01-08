@@ -20,6 +20,7 @@
 #include "convert_base.h"
 #include <algorithm>
 #include <optional>
+#include <ranges>
 
 /**
  * @brief XML processing utilities.
@@ -36,7 +37,7 @@ namespace docwire::xml
  * @sa @ref xml_parsing_example.cpp "XML parsing example"
  */
 template <safety_policy safety_level = default_safety_level>
-class attributes_view
+class attributes_view : public std::ranges::view_base
 {
 public:
     class iterator;

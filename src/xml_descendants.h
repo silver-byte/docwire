@@ -18,6 +18,7 @@
 #include "xml_node_ref.h"
 #include "not_null.h"
 #include <memory>
+#include <ranges>
 
 namespace docwire::xml
 {
@@ -30,7 +31,7 @@ namespace docwire::xml
  * @sa @ref xml_parsing_example.cpp "XML parsing example"
  */
 template <safety_policy safety_level = default_safety_level>
-class descendants_view
+class descendants_view : public std::ranges::view_base
 {
 public:
 	class iterator;
