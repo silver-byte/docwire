@@ -1,6 +1,7 @@
 add_library(docwire_core SHARED
     charset_converter.cpp
     convert_chrono.cpp
+    convert_numeric.cpp
     cosine_similarity.cpp
     data_source.cpp
     debug_assert.cpp

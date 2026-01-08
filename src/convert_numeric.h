@@ -26,13 +26,27 @@ namespace docwire::convert {
 template<typename T>
 concept is_from_chars_compatible = (std::is_integral_v<T> && !std::is_same_v<T, bool>) || std::is_floating_point_v<T>;
 
+namespace detail
+{
+
+template <typename T>
+concept std_from_chars_available = requires(const char* first, const char* last, T& value) {
+    { std::from_chars(first, last, value) } -> std::same_as<std::from_chars_result>;
+};
+
+std::optional<float> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<float>) noexcept;
+std::optional<double> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<double>) noexcept;
+std::optional<long double> from_chars_fallback(std::string_view sv, bool allow_partial, dest_type_tag<long double>) noexcept;
+
+} // namespace detail
+
 /**
  * @brief Converts a string-like value to a numeric type using std::from_chars.
  * @tparam To The target numeric type.
  * @tparam From The source string type (must be convertible to string_view).
  */
 template<is_from_chars_compatible To, std::convertible_to<std::string_view> From>
-requires (noexcept(std::string_view(std::declval<const From&>())))
+requires (noexcept(std::string_view(std::declval<const From&>())) && detail::std_from_chars_available<To>)
 std::optional<To> convert_impl(const From& s, dest_type_tag<To>) noexcept
 {
 	To value{};
@@ -47,6 +61,16 @@ std::optional<To> convert_impl(const From& s, dest_type_tag<To>) noexcept
             return std::nullopt;
 
     return value;
+}
+
+/**
+ * @brief Fallback conversion for floating point types when std::from_chars is not available.
+ */
+template<std::floating_point To, std::convertible_to<std::string_view> From>
+requires (noexcept(std::string_view(std::declval<const From&>())) && !detail::std_from_chars_available<To>)
+std::optional<To> convert_impl(const From& s, dest_type_tag<To>) noexcept
+{
+    return detail::from_chars_fallback(std::string_view(s), std::is_same_v<From, with::partial_match>, dest_type_tag<To>{});
 }
 
 } // namespace docwire::convert
