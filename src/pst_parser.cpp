@@ -32,8 +32,11 @@ extern "C"
 #include "log_entry.h"
 #include "log_scope.h"
 #include "misc.h"
+#include "make_error.h"
+#include "nested_exception.h"
 #include "serialization_message.h" // IWYU pragma: keep
 #include "throw_if.h"
+#include "message_counters.h"
 
 namespace docwire
 {
@@ -422,7 +425,14 @@ void pimpl_impl<PSTParser>::parse_internal(const Folder& root, int deep, unsigne
         continue;
       }
       emit_message(mail::MailBody{});
-      emit_message_back(data_source{*html_text, mime_type { "text/html" }, confidence::very_high});
+      try
+      {
+        emit_message_back(data_source{*html_text, mime_type { "text/html" }, confidence::very_high});
+      }
+      catch (const std::exception&)
+      {
+        emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process mail body")));
+      }
       ++mail_counter;
       emit_message(mail::CloseMailBody{});
     }
@@ -437,7 +447,14 @@ void pimpl_impl<PSTParser>::parse_internal(const Folder& root, int deep, unsigne
       {
         continue;
       }
-      emit_message_back(data_source{std::string((const char*)attachment.m_raw_data.get(), attachment.m_size), extension});
+      try
+      {
+        emit_message_back(data_source{std::string((const char*)attachment.m_raw_data.get(), attachment.m_size), extension});
+      }
+      catch (const std::exception&)
+      {
+        emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process attachment", attachment.m_name)));
+      }
       emit_message(mail::CloseAttachment{});
     }
 	emit_message(mail::CloseMail{});
@@ -558,8 +575,12 @@ continuation PSTParser::operator()(message_ptr msg, const message_callbacks& emi
     try
     {
         std::shared_ptr<std::istream> stream = data.istream();
-        scoped::stack_push<context> context_guard{impl().m_context_stack, context{emit_message}};
+        message_counters counters;
+        auto counting_callbacks = make_counted_message_callbacks(emit_message, counters);
+        scoped::stack_push<context> context_guard{impl().m_context_stack, context{counting_callbacks}};
         impl().parse(stream);
+        if (counters.all_failed())
+            throw make_error("No items were successfully processed", errors::uninterpretable_data{});
     }
     catch (const std::exception& e)
     {

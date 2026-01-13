@@ -17,6 +17,7 @@
 #include "eml_parser.h"
 
 #include "charset_converter.h"
+#include "error_tags.h"
 #include "convert_base.h"
 #include "mail_elements.h"
 #include "data_source.h"
@@ -31,6 +32,7 @@
 #include "serialization_data_source.h" // IWYU pragma: keep
 #include "serialization_message.h" // IWYU pragma: keep
 #include "scoped_stack_push.h"
+#include "message_counters.h"
 
 namespace docwire
 {
@@ -93,7 +95,7 @@ struct pimpl_impl<EMLParser> : pimpl_impl_base
 		return static_cast<const mime_wrapper&>(mime_entity).get_mime_type();
 	}
 
-	void extractPlainText(const mime& mime_entity) const
+	void extractPlainText(const mime& mime_entity)
 	{
 		log_scope();
 		if (mime_entity.content_disposition() != mime::content_disposition_t::ATTACHMENT && mime_entity.content_type().type == mime::media_type_t::TEXT)
@@ -112,8 +114,15 @@ struct pimpl_impl<EMLParser> : pimpl_impl_base
 			if (mime_entity.content_type().subtype == "html" || mime_entity.content_type().subtype == "xhtml")
 			{
 				log_scope();
-				emit_message_back(data_source {
-					plain, mime_type{"text/html"}, confidence::very_high});
+				try
+				{
+					emit_message_back(data_source {
+						plain, mime_type{"text/html"}, confidence::very_high});
+				}
+				catch (std::exception&)
+				{
+					emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process HTML body part")));
+				}
 			}
 			else
 			{
@@ -125,8 +134,15 @@ struct pimpl_impl<EMLParser> : pimpl_impl_base
 				else
 				{
 					log_scope();
-					emit_message_back(data_source {
-						plain, mime_type{"text/plain"}, confidence::very_high});
+					try
+					{
+						emit_message_back(data_source {
+							plain, mime_type{"text/plain"}, confidence::very_high});
+					}
+					catch (std::exception&)
+					{
+						emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process text body part")));
+					}
 				}
 			}
 			emit_message(document::Text{.text = "\n\n"});
@@ -142,8 +158,15 @@ struct pimpl_impl<EMLParser> : pimpl_impl_base
 			auto result = emit_message(mail::Attachment{.name = file_name, .size = plain.length(), .extension = extension});
 			if (result != continuation::skip)
 			{
-				emit_message_back(data_source {
-					plain, mime_type_from_mime_entity(mime_entity), confidence::very_high});
+				try
+				{
+					emit_message_back(data_source {
+						plain, mime_type_from_mime_entity(mime_entity), confidence::very_high});
+				}
+				catch (std::exception&)
+				{
+					emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process attachment", file_name)));
+				}
 			}
 			emit_message(mail::CloseAttachment{});
 		}
@@ -232,7 +255,9 @@ continuation EMLParser::operator()(message_ptr msg, const message_callbacks& emi
 	log_entry();
 	try
 	{
-		scoped::stack_push<context> context_guard{impl().m_context_stack, context{emit_message}};
+		message_counters counters;
+		auto counting_callbacks = make_counted_message_callbacks(emit_message, counters);
+		scoped::stack_push<context> context_guard{impl().m_context_stack, context{counting_callbacks}};
 		mailio::message mime_entity = parse_message(data, [emit_message](std::exception_ptr e) { emit_message(std::move(e)); });
 		emit_message(document::Document
 			{
@@ -242,6 +267,8 @@ continuation EMLParser::operator()(message_ptr msg, const message_callbacks& emi
 				}
 			});
 		impl().extractPlainText(mime_entity);
+		if (counters.all_failed())
+			throw make_error("No parts were successfully processed", errors::uninterpretable_data{});
 		emit_message(document::CloseDocument{});
 	}
 	catch (const std::exception& e)

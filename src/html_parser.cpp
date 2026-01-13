@@ -39,6 +39,7 @@
 #include "scoped_stack_push.h"
 #include "throw_if.h" 
 #include "document_elements.h"
+#include "message_counters.h"
 
 namespace docwire
 {
@@ -478,7 +479,9 @@ void pimpl_impl<HTMLParser>::parse_document(const std::string& html_content_arg,
 		}
 	}
 
-	scoped::stack_push<context> context_guard{m_context_stack, context{emit_message}};
+	message_counters counters;
+	auto counting_callbacks = make_counted_message_callbacks(emit_message, counters);
+	scoped::stack_push<context> context_guard{m_context_stack, context{counting_callbacks}};
 
 	lxb_html_document_t* document = lxb_html_document_create();
 	throw_if(document == nullptr, "lxb_html_document_create failed");
@@ -515,6 +518,9 @@ void pimpl_impl<HTMLParser>::parse_document(const std::string& html_content_arg,
 
 	lxb_dom_node_t* body = lxb_dom_interface_node(lxb_html_document_body_element(document));
     process_node(body);
+
+	if (counters.all_failed())
+		throw make_error("No elements were successfully processed", errors::uninterpretable_data{});
 
 	lxb_html_document_destroy(document);
 }
@@ -639,7 +645,7 @@ void pimpl_impl<HTMLParser>::process_tag(const lxb_dom_node_t* node, bool is_clo
 		if (tag_id == LXB_TAG_STYLE)
 		{
 			m_context_stack.top().in_style = false;
-			if (!m_context_stack.top().in_metadata) 
+			if (!m_context_stack.top().in_metadata)
 				emit_message(document::Style{.css_text = m_context_stack.top().style_text});
 			m_context_stack.top().style_text.clear();
 		}

@@ -3148,3 +3148,186 @@ TEST(EnsureDeathTest, MisuseDetection)
         "ensure\\(\\) was called without a comparison operator");
 }
 #endif
+
+// Helper for direct parser testing
+template <typename Parser>
+void TestParserFailures(const std::string& filename,
+                          std::function<void(message_ptr)> back_inspector,
+                          std::function<void(message_ptr)> forward_inspector)
+{
+    data_source ds{std::filesystem::path{filename}};
+    // Run detector to populate mime types
+    content_type::detect(ds);
+
+    Parser parser;
+    parser(std::make_shared<message<data_source>>(std::move(ds)), {
+        [&](message_ptr msg) {
+            if (forward_inspector) forward_inspector(msg);
+            return continuation::proceed;
+        },
+        [&](message_ptr msg) {
+            if (back_inspector) back_inspector(msg);
+            return continuation::proceed;
+        }
+    });
+}
+
+TEST(PartialAndTotalFailures, Zip_Partial)
+{
+    int count = 0;
+    TestParserFailures<archives_parser>("test.zip",
+        [&](message_ptr msg) {
+            if (msg->is<data_source>()) {
+                count++;
+                if (count == 1) throw std::runtime_error("Simulated failure");
+            }
+        },
+        nullptr
+    );
+    // Should not throw, meaning resilience worked.
+}
+
+TEST(PartialAndTotalFailures, Zip_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<archives_parser>("test.zip",
+            [](message_ptr msg) {
+                if (msg->is<data_source>()) throw std::runtime_error("Simulated failure");
+            },
+            nullptr
+        );
+    }, std::exception);
+}
+
+TEST(PartialAndTotalFailures, EML_Partial)
+{
+    int count = 0;
+    bool body_received = false;
+    TestParserFailures<EMLParser>("fourth.eml",
+        [&](message_ptr msg) {
+            if (msg->is<data_source>()) {
+                count++;
+                // 1st is body (text/plain), 2nd is attachment
+                if (count == 2) throw std::runtime_error("Simulated attachment failure");
+                if (count == 1) body_received = true;
+            }
+        },
+        nullptr
+    );
+    EXPECT_TRUE(body_received);
+}
+
+TEST(PartialAndTotalFailures, EML_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<EMLParser>("fourth.eml",
+            [](message_ptr msg) {
+                if (msg->is<data_source>()) throw std::runtime_error("Simulated failure");
+            },
+            [](message_ptr msg) {
+                if (msg->is<document::Text>()) throw std::runtime_error("Simulated failure");
+            }
+        );
+    }, std::exception);
+}
+
+TEST(PartialAndTotalFailures, PST_Partial)
+{
+    int count = 0;
+    TestParserFailures<PSTParser>("1.pst",
+        [&](message_ptr msg) {
+            if (msg->is<data_source>()) {
+                count++;
+                if (count == 1) throw std::runtime_error("Simulated failure");
+            }
+        },
+        nullptr
+    );
+    // Should not throw, meaning resilience worked.
+}
+
+TEST(PartialAndTotalFailures, PST_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<PSTParser>("1.pst",
+            [](message_ptr msg) {
+                if (msg->is<data_source>()) throw std::runtime_error("Simulated failure");
+            },
+            [](message_ptr msg) {
+                if (!msg->is<document::Document>() && !msg->is<document::CloseDocument>())
+                    throw std::runtime_error("Simulated failure");
+            }
+        );
+    }, std::exception);
+}
+
+TEST(PartialAndTotalFailures, HTML_Partial)
+{
+    int count = 0;
+    std::string text_output;
+    TestParserFailures<HTMLParser>("embedded_images.html",
+        // back inspector
+        [&](message_ptr msg) {
+            if (msg->is<document::Image>()) {
+                count++;
+                if (count == 1) throw std::runtime_error("Simulated image failure");
+            }
+        },
+        // forward inspector
+        [&](message_ptr msg) {
+            if (msg->is<document::Text>()) {
+                text_output += msg->get<document::Text>().text;
+            }
+        }
+    );
+    EXPECT_THAT(text_output, testing::HasSubstr("and the second image:"));
+}
+
+TEST(PartialAndTotalFailures, HTML_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<HTMLParser>("embedded_images.html",
+            [](message_ptr msg) {
+                throw std::runtime_error("Simulated image failure");
+            },
+            [](message_ptr msg) {
+                if (!msg->is<document::Document>() && !msg->is<document::CloseDocument>())
+                    throw std::runtime_error("Simulated text failure");
+            }
+        );
+    }, std::exception);
+}
+
+TEST(PartialAndTotalFailures, PDF_Partial)
+{
+    int count = 0;
+    std::string text_output;
+    TestParserFailures<PDFParser>("embedded_images.pdf",
+        [&](message_ptr msg) {
+            if (msg->is<document::Image>()) {
+                count++;
+                if (count == 1) throw std::runtime_error("Simulated image failure");
+            }
+        },
+        [&](message_ptr msg) {
+            if (msg->is<document::Text>()) {
+                text_output += msg->get<document::Text>().text;
+            }
+        }
+    );
+    EXPECT_THAT(text_output, testing::HasSubstr("and the second image:"));
+}
+
+TEST(PartialAndTotalFailures, PDF_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<PDFParser>("embedded_images.pdf",
+            [](message_ptr msg) {
+                if (msg->is<document::Image>()) throw std::runtime_error("Simulated image failure");
+            },
+            [](message_ptr msg) {
+                if (msg->is<document::Text>()) throw std::runtime_error("Simulated text failure");
+            }
+        );
+    }, std::exception);
+}

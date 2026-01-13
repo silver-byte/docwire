@@ -14,12 +14,16 @@
 #include <archive.h>
 #include <archive_entry.h>
 #include "data_source.h"
+#include "error_tags.h"
 #include <filesystem>
 #include "log_entry.h"
 #include "log_scope.h"
+#include "make_error.h"
+#include "nested_exception.h"
 #include "serialization_message.h" // IWYU pragma: keep
 #include "throw_if.h"
 #include <vector>
+#include "message_counters.h"
 
 namespace docwire
 {
@@ -221,6 +225,8 @@ continuation archives_parser::operator()(message_ptr msg, const message_callback
 		log_scope();
 		ArchiveReader reader(*in_stream, [&emit_message](std::exception_ptr e) { emit_message(std::move(e)); });
 
+		message_counters counters;
+		auto counting_callbacks = make_counted_message_callbacks(emit_message, counters);
 		for (ArchiveReader::Entry entry: reader)
 		{
 			std::string entry_name = entry.get_name();
@@ -232,13 +238,22 @@ continuation archives_parser::operator()(message_ptr msg, const message_callback
 				continue;
 			}
 
-			data_source entry_data_source{
-				unseekable_stream_ptr{entry.create_stream()}, 
-				file_extension{std::filesystem::path{entry_name}}
-			};
-			if (emit_message.back(std::move(entry_data_source)) == continuation::stop)
-				return continuation::stop;
+			try
+			{
+				data_source entry_data_source{
+					unseekable_stream_ptr{entry.create_stream()}, 
+					file_extension{std::filesystem::path{entry_name}}
+				};
+				if (counting_callbacks.back(std::move(entry_data_source)) == continuation::stop)
+					return continuation::stop;
+			}
+			catch (const std::exception&)
+			{
+				emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process archive entry", entry_name)));
+			}
 		}
+		if (counters.all_failed())
+			throw make_error("No entries were successfully processed", errors::uninterpretable_data{});
 	}
 	catch (const std::exception& e)
 	{
