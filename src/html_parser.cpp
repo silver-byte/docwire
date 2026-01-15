@@ -483,16 +483,18 @@ void pimpl_impl<HTMLParser>::parse_document(const std::string& html_content_arg,
 	auto counting_callbacks = make_counted_message_callbacks(emit_message, counters);
 	scoped::stack_push<context> context_guard{m_context_stack, context{counting_callbacks}};
 
-	lxb_html_document_t* document = lxb_html_document_create();
+	std::unique_ptr<lxb_html_document_t, decltype([](lxb_html_document_t* doc) { lxb_html_document_destroy(doc); })> document(lxb_html_document_create());
 	throw_if(document == nullptr, "lxb_html_document_create failed");
 
-	throw_if(lxb_html_document_parse(document, (const lxb_char_t *)html_content.data(), html_content.size()) != LXB_STATUS_OK,
+	throw_if(lxb_html_document_parse(document.get(), (const lxb_char_t *)html_content.data(), html_content.size()) != LXB_STATUS_OK,
 		"Failed to parse HTML document");
 
-	fix_dom(lxb_dom_interface_node(document));
+	fix_dom(lxb_dom_interface_node(document.get()));
 
-	lxb_dom_node_t* head = lxb_dom_interface_node(lxb_html_document_head_element(document));
-	parse_css((const char*)lxb_dom_node_text_content(head, nullptr));
+	lxb_dom_node_t* head = lxb_dom_interface_node(lxb_html_document_head_element(document.get()));
+	const lxb_char_t* head_text;
+	if (head && (head_text = lxb_dom_node_text_content(head, nullptr)) && *head_text)
+		parse_css((const char*)head_text);
 
 	emit_message(document::Document
 		{
@@ -516,13 +518,11 @@ void pimpl_impl<HTMLParser>::parse_document(const std::string& html_content_arg,
 	process_node(head);
 	m_context_stack.top().in_head = false;
 
-	lxb_dom_node_t* body = lxb_dom_interface_node(lxb_html_document_body_element(document));
+	lxb_dom_node_t* body = lxb_dom_interface_node(lxb_html_document_body_element(document.get()));
     process_node(body);
 
 	if (counters.all_failed())
 		throw make_error("No elements were successfully processed", errors::uninterpretable_data{});
-
-	lxb_html_document_destroy(document);
 }
 
 void pimpl_impl<HTMLParser>::process_node(const lxb_dom_node_t* node)
