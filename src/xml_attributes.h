@@ -46,7 +46,7 @@ public:
      * @brief Destructor.
      * Moves the reader back to the element containing the attributes to ensure consistent state for further parsing.
      */
-    ~attributes_view() noexcept
+    ~attributes_view() noexcept(noexcept(m_reader.get().move_to_element()))
     {
         m_reader.get().move_to_element();
     }
