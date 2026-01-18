@@ -619,7 +619,7 @@ void CommonXMLDocumentParser<safety_level>::parseODFMetadata(std::string_view xm
 	log_scope();
 	try
 	{
-		xml::reader xml_reader(xml_content, xml::reader_blanks::ignore);
+		xml::reader<safety_level> xml_reader(xml_content, xml::reader_blanks::ignore);
 		for (auto sub_node: children(root_element(xml_reader)))
 		{
 			if (sub_node.name() == "meta")
