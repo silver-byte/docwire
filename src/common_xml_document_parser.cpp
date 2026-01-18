@@ -208,7 +208,7 @@ struct pimpl_impl<CommonXMLDocumentParser<safety_level>> : with_pimpl_owner<Comm
                         bool& children_processed, std::string& level_suffix, bool first_on_level)
   {
     log_scope();
-    if (m_context_stack.top().m_disabled_text == false && xml_node.name() == "#text")
+    if (m_context_stack.top().m_disabled_text == false)
     {
       std::string content { xml_node.content() };
 	  log_entry(content);
