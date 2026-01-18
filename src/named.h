@@ -97,7 +97,10 @@ namespace std
      * @brief Specialization of `std::tuple_element` for `docwire::named::value` to enable structured bindings.
      */
     template <size_t I, typename T>
-    struct tuple_element<I, docwire::named::value<T>> : std::conditional<I == 0, std::string_view, T> {};
+    struct tuple_element<I, docwire::named::value<T>>
+    {
+        using type = std::conditional_t<I == 0, std::string_view, T>;
+    };
 }
 
 #endif // DOCWIRE_NAMED_H
