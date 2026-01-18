@@ -15,6 +15,7 @@
 #include "xml_children.h"
 #include "xml_node_ref.h"
 #include "make_error.h"
+#include "error_tags.h"
 
 namespace docwire::xml
 {
@@ -35,7 +36,7 @@ node_ref<safety_level> root_element(reader<safety_level>& reader)
         if (node.type() == node_type::element)
             return node;
     }
-    throw DOCWIRE_MAKE_ERROR("No root element found");
+    throw DOCWIRE_MAKE_ERROR("No root element found", docwire::errors::uninterpretable_data{});
 }
 
 }
