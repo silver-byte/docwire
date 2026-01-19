@@ -60,7 +60,7 @@ namespace docwire::named
         const std::string_view name;
 
         template <typename T>
-        [[nodiscard]] constexpr auto operator=(T&& val) const noexcept
+        [[nodiscard]] constexpr auto operator=(T&& val) const noexcept(noexcept(value<std::decay_t<T>>{name, std::forward<T>(val)}))
         {
             return value<std::decay_t<T>>{name, std::forward<T>(val)};
         }
