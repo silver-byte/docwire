@@ -496,7 +496,7 @@ void pimpl_impl<PSTParser>::parse(std::shared_ptr<std::istream> stream) const
 	bfio_error bfio_err;
 
      libbfio_stream_initialize(&handle, stream);
-     libbfio_handle_open(handle, LIBBFIO_OPEN_READ_WRITE_TRUNCATE, &bfio_err);
+	throw_if(libbfio_handle_open(handle, LIBBFIO_OPEN_READ, &bfio_err) != 1, "libbfio_handle_open failed");
     throw_if (libpff_file_open_file_io_handle(file, handle, LIBBFIO_OPEN_READ, &error) != 1, "libpff_file_open_file_io_handle failed");
 
 	pff_item root = nullptr;
