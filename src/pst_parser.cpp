@@ -488,15 +488,15 @@ void libbfio_stream_initialize(libbfio_handle_t** handle, std::shared_ptr<std::i
 void pimpl_impl<PSTParser>::parse(std::shared_ptr<std::istream> stream) const
 {
 	log_scope();
-	pff_file file;
-	pff_error error{nullptr};
-	throw_if (libpff_file_initialize(&file, &error) != 1, "libpff_file_initialize failed");
-
 	bfio_handle handle;
 	bfio_error bfio_err;
 
-     libbfio_stream_initialize(&handle, stream);
+	libbfio_stream_initialize(&handle, stream);
 	throw_if(libbfio_handle_open(handle, LIBBFIO_OPEN_READ, &bfio_err) != 1, "libbfio_handle_open failed");
+
+	pff_file file;
+	pff_error error{nullptr};
+	throw_if (libpff_file_initialize(&file, &error) != 1, "libpff_file_initialize failed");
     throw_if (libpff_file_open_file_io_handle(file, handle, LIBBFIO_OPEN_READ, &error) != 1, "libpff_file_open_file_io_handle failed");
 
 	pff_item root = nullptr;
