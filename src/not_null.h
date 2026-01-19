@@ -58,7 +58,10 @@ public:
     template <typename... Args,
               typename = std::enable_if_t<std::is_constructible_v<Ptr, Args...> && (sizeof...(Args) > 1)>>
     not_null(Args&&... args)
-        : m_ptr(std::forward<Args>(args)...) {}
+        : m_ptr(std::forward<Args>(args)...)
+    {
+        enforce<safety_level>(m_ptr != nullptr, "not_null constructed with a null pointer.");
+    }
 
     // Deleted constructors to prevent creation from nullptr.
     not_null(std::nullptr_t) = delete;
