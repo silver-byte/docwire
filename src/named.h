@@ -101,6 +101,7 @@ namespace std
     template <size_t I, typename T>
     struct tuple_element<I, docwire::named::value<T>>
     {
+        static_assert(I < 2, "index out of range for docwire::named::value");
         using type = std::conditional_t<I == 0, std::string_view, T>;
     };
 }
