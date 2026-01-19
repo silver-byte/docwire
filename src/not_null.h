@@ -15,6 +15,7 @@
 #include "safety_policy.h"
 #include "enforce.h"
 #include <utility>
+#include <type_traits>
 
 namespace docwire
 {
@@ -99,9 +100,9 @@ private:
  * which throws on failure instead of returning null.
  */
 template <typename Ptr>
-[[nodiscard]] not_null<Ptr> assume_not_null(Ptr&& ptr)
+[[nodiscard]] not_null<std::remove_cvref_t<Ptr>> assume_not_null(Ptr&& ptr)
 {
-    return not_null<Ptr>(std::forward<Ptr>(ptr), guaranteed);
+    return not_null<std::remove_cvref_t<Ptr>>(std::forward<Ptr>(ptr), guaranteed);
 }
 
 } // namespace docwire
