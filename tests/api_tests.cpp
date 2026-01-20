@@ -49,6 +49,7 @@
 #include "meta_data_exporter.h"
 #include "nested_exception.h"
 #include "../src/standard_filter.h"
+#include "named.h"
 #include <optional>
 #include <algorithm>
 #include "ocr_parser.h"
@@ -2996,6 +2997,36 @@ TEST(Stringification, StrongTypeAlias)
 
     string_alias my_str{"hello"};
     EXPECT_EQ(stringify(my_str), "hello");
+}
+
+TEST(Named, StructuredBinding)
+{
+    auto v = "test_name"_v = 123;
+    auto [name, value] = v;
+    ASSERT_EQ(name, "test_name");
+    ASSERT_EQ(value, 123);
+
+    static_assert(std::is_same_v<decltype(name), std::string_view>);
+    static_assert(std::is_same_v<decltype(value), int>);
+}
+
+TEST(Named, StructuredBindingRef)
+{
+    auto v = "test_name"_v = 123;
+    auto& [name, value] = v;
+    ASSERT_EQ(name, "test_name");
+    ASSERT_EQ(value, 123);
+
+    value = 456;
+    ASSERT_EQ(v.value, 456);
+}
+
+TEST(Named, StructuredBindingMove)
+{
+    auto v = "test_name"_v = std::string("test_value");
+    auto [name, value] = std::move(v);
+    ASSERT_EQ(name, "test_name");
+    ASSERT_EQ(value, "test_value");
 }
 
 int main(int argc, char* argv[])

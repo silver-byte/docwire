@@ -30,29 +30,28 @@ namespace docwire::named
         std::string_view name;
         /// The value of the parameter.
         T value;
-
-        /// Support for structured bindings.
-        template <size_t I>
-        [[nodiscard]] constexpr decltype(auto) get() & noexcept
-        {
-            if constexpr (I == 0) return (name);
-            else return (value);
-        }
-
-        template <size_t I>
-        [[nodiscard]] constexpr decltype(auto) get() const& noexcept
-        {
-            if constexpr (I == 0) return (name);
-            else return (value);
-        }
-
-        template <size_t I>
-        [[nodiscard]] constexpr decltype(auto) get() && noexcept
-        {
-            if constexpr (I == 0) return (name);
-            else return std::move(value);
-        }
     };
+
+    template <size_t I, typename T>
+    [[nodiscard]] constexpr decltype(auto) get(value<T>& v) noexcept
+    {
+        if constexpr (I == 0) return (v.name);
+        else return (v.value);
+    }
+
+    template <size_t I, typename T>
+    [[nodiscard]] constexpr decltype(auto) get(const value<T>& v) noexcept
+    {
+        if constexpr (I == 0) return (v.name);
+        else return (v.value);
+    }
+
+    template <size_t I, typename T>
+    [[nodiscard]] constexpr decltype(auto) get(value<T>&& v) noexcept
+    {
+        if constexpr (I == 0) return std::move(v.name);
+        else return std::move(v.value);
+    }
 
     /**
      * @brief A helper to create named values using assignment syntax.
