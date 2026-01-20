@@ -49,6 +49,7 @@
 #include "meta_data_exporter.h"
 #include "nested_exception.h"
 #include "../src/standard_filter.h"
+#include "not_null.h"
 #include "named.h"
 #include <optional>
 #include <algorithm>
@@ -3027,6 +3028,50 @@ TEST(Named, StructuredBindingMove)
     auto [name, value] = std::move(v);
     ASSERT_EQ(name, "test_name");
     ASSERT_EQ(value, "test_value");
+}
+
+TEST(NotNull, ConstructionAndAccess)
+{
+    int value = 42;
+    not_null<int*> ptr(&value);
+    EXPECT_EQ(*ptr, 42);
+    *ptr = 43;
+    EXPECT_EQ(value, 43);
+
+    struct S { int x; };
+    S s{10};
+    not_null<S*> s_ptr(&s);
+    EXPECT_EQ(s_ptr->x, 10);
+    s_ptr->x = 11;
+    EXPECT_EQ(s.x, 11);
+}
+
+TEST(NotNull, SmartPointers)
+{
+    auto sp = std::make_shared<int>(100);
+    not_null<std::shared_ptr<int>> nn_sp(sp);
+    EXPECT_EQ(*nn_sp, 100);
+    EXPECT_EQ(nn_sp.get(), sp.get());
+
+    auto up = std::make_unique<int>(200);
+    not_null<std::unique_ptr<int>> nn_up(std::move(up));
+    EXPECT_EQ(*nn_up, 200);
+}
+
+TEST(NotNull, ThrowsOnNull)
+{
+    int* null_ptr = nullptr;
+    EXPECT_THROW((not_null<int*, strict>(null_ptr)), docwire::errors::base);
+
+    std::shared_ptr<int> null_sp;
+    EXPECT_THROW((not_null<std::shared_ptr<int>, strict>(null_sp)), docwire::errors::base);
+}
+
+TEST(NotNull, AssumeNotNull)
+{
+    int value = 5;
+    auto nn = assume_not_null(&value);
+    EXPECT_EQ(*nn, 5);
 }
 
 int main(int argc, char* argv[])

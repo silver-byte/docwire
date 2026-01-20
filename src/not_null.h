@@ -86,7 +86,6 @@ public:
     }
 
     explicit operator const Ptr&() const { return m_ptr; }
-    explicit operator Ptr&() { return m_ptr; }
 
 private:
     Ptr m_ptr;
