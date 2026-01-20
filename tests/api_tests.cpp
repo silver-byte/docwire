@@ -3206,6 +3206,7 @@ void TestParserFailures(const std::string& filename,
 TEST(PartialAndTotalFailures, Zip_Partial)
 {
     int count = 0;
+    bool error_received = false;
     TestParserFailures<archives_parser>("test.zip",
         [&](message_ptr msg) {
             if (msg->is<data_source>()) {
@@ -3213,9 +3214,13 @@ TEST(PartialAndTotalFailures, Zip_Partial)
                 if (count == 1) throw std::runtime_error("Simulated failure");
             }
         },
-        nullptr
+        [&](message_ptr msg) {
+            if (msg->is<std::exception_ptr>()) error_received = true;
+        }
     );
     // Should not throw, meaning resilience worked.
+    EXPECT_GT(count, 1);
+    EXPECT_TRUE(error_received);
 }
 
 TEST(PartialAndTotalFailures, Zip_Total)
@@ -3234,18 +3239,23 @@ TEST(PartialAndTotalFailures, EML_Partial)
 {
     int count = 0;
     bool body_received = false;
+    bool error_received = false;
     TestParserFailures<EMLParser>("fourth.eml",
         [&](message_ptr msg) {
             if (msg->is<data_source>()) {
                 count++;
-                // 1st is body (text/plain), 2nd is attachment
-                if (count == 2) throw std::runtime_error("Simulated attachment failure");
-                if (count == 1) body_received = true;
+                // fourth.eml has 1 attachment (data_source) and body (document::Text)
+                if (count == 1) throw std::runtime_error("Simulated attachment failure");
             }
         },
-        nullptr
+        [&](message_ptr msg) {
+            if (msg->is<document::Text>()) body_received = true;
+            if (msg->is<std::exception_ptr>()) error_received = true;
+        }
     );
     EXPECT_TRUE(body_received);
+    EXPECT_TRUE(error_received);
+    EXPECT_EQ(count, 1);
 }
 
 TEST(PartialAndTotalFailures, EML_Total)
@@ -3265,6 +3275,7 @@ TEST(PartialAndTotalFailures, EML_Total)
 TEST(PartialAndTotalFailures, PST_Partial)
 {
     int count = 0;
+    bool error_received = false;
     TestParserFailures<PSTParser>("1.pst",
         [&](message_ptr msg) {
             if (msg->is<data_source>()) {
@@ -3272,9 +3283,13 @@ TEST(PartialAndTotalFailures, PST_Partial)
                 if (count == 1) throw std::runtime_error("Simulated failure");
             }
         },
-        nullptr
+        [&](message_ptr msg) {
+            if (msg->is<std::exception_ptr>()) error_received = true;
+        }
     );
     // Should not throw, meaning resilience worked.
+    EXPECT_GT(count, 1);
+    EXPECT_TRUE(error_received);
 }
 
 TEST(PartialAndTotalFailures, PST_Total)
@@ -3296,6 +3311,7 @@ TEST(PartialAndTotalFailures, HTML_Partial)
 {
     int count = 0;
     std::string text_output;
+    bool error_received = false;
     TestParserFailures<HTMLParser>("embedded_images.html",
         // back inspector
         [&](message_ptr msg) {
@@ -3308,10 +3324,14 @@ TEST(PartialAndTotalFailures, HTML_Partial)
         [&](message_ptr msg) {
             if (msg->is<document::Text>()) {
                 text_output += msg->get<document::Text>().text;
+            } else if (msg->is<std::exception_ptr>()) {
+                error_received = true;
             }
         }
     );
     EXPECT_THAT(text_output, testing::HasSubstr("and the second image:"));
+    EXPECT_TRUE(error_received);
+    EXPECT_GT(count, 1);
 }
 
 TEST(PartialAndTotalFailures, HTML_Total)
@@ -3333,6 +3353,7 @@ TEST(PartialAndTotalFailures, PDF_Partial)
 {
     int count = 0;
     std::string text_output;
+    bool error_received = false;
     TestParserFailures<PDFParser>("embedded_images.pdf",
         [&](message_ptr msg) {
             if (msg->is<document::Image>()) {
@@ -3343,10 +3364,14 @@ TEST(PartialAndTotalFailures, PDF_Partial)
         [&](message_ptr msg) {
             if (msg->is<document::Text>()) {
                 text_output += msg->get<document::Text>().text;
+            } else if (msg->is<std::exception_ptr>()) {
+                error_received = true;
             }
         }
     );
     EXPECT_THAT(text_output, testing::HasSubstr("and the second image:"));
+    EXPECT_TRUE(error_received);
+    EXPECT_GT(count, 1);
 }
 
 TEST(PartialAndTotalFailures, PDF_Total)
