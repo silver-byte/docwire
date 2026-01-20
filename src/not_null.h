@@ -29,7 +29,7 @@ constexpr inline guaranteed_t guaranteed;
 /**
  * @brief A wrapper for pointer-like types that enforces a non-null invariant.
  *
- * In `safe` mode, the constructor checks for null and throws if the invariant is violated.
+ * In `strict` mode, the constructor checks for null and throws if the invariant is violated.
  * In `relaxed` mode, this wrapper is a zero-cost abstraction with no runtime checks.
  *
  * @tparam Ptr The underlying pointer type.
