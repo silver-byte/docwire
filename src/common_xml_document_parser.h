@@ -15,7 +15,7 @@
 #include "attributes.h"
 #include "chain_element.h"
 #include "pimpl.h"
-#include "xml_stream.h"
+#include "xml_children.h"
 #include <string>
 #include <vector>
 #include <map>
@@ -28,110 +28,190 @@ namespace docwire
 enum XmlParseMode { PARSE_XML, FIX_XML, STRIP_XML };
 
 /**
-	This class is inherited by ODFOOXMLParser and ODFXMLParser. It contains some common
-	functions for both parsers.
-	How inheritance works:
-	Child classes (ODFOOXMLParser and ODFXMLParser for now) may want to add or change handlers for some xml tags
-	(using registerODFOOXMLCommandHandler).
-**/
-class CommonXMLDocumentParser: public ChainElement, public with_pimpl<CommonXMLDocumentParser>
+ * @brief Base class for XML-based document parsers (ODF, OOXML, etc.).
+ * 
+ * This class is inherited by specific parsers (e.g., ODFOOXMLParser, ODFXMLParser).
+ * It allows registering handlers for specific XML tags.
+ * 
+ * @tparam safety_level The safety policy used for XML parsing operations.
+ * @sa xml::reader
+ * @sa @ref xml_parsing_example.cpp "XML parsing example"
+ */
+template <safety_policy safety_level = default_safety_level>
+class CommonXMLDocumentParser: public ChainElement, public with_pimpl<CommonXMLDocumentParser<safety_level>>
 {
 	private:
-		friend pimpl_impl<CommonXMLDocumentParser>;
-		using with_pimpl<CommonXMLDocumentParser>::impl;
+		friend pimpl_impl<CommonXMLDocumentParser<safety_level>>;
+		using with_pimpl<CommonXMLDocumentParser<safety_level>>::impl;
 
 	//public interface for derived classes (and its components)
 	public:
+		/// Enum for list styles (e.g., numbered or bulleted).
 		enum ODFOOXMLListStyle
 		{
 			number,
 			bullet
 		};
 
+		/// Represents a comment with author, time, and text.
 		struct Comment
 		{
 			std::string m_author;
 			std::string m_time;
 			std::string m_text;
 			Comment() {}
+			/**
+			 * @brief Constructs a Comment.
+			 * @param author The author of the comment.
+			 * @param time The timestamp of the comment.
+			 * @param text The content of the comment.
+			 */
 			Comment(const std::string& author, const std::string& time, const std::string& text)
 				: m_author(author), m_time(time), m_text(text) {}
 		};
 
+		/// Represents a relationship, typically for hyperlinks or embedded objects.
 		struct Relationship
 		{
 			std::string m_target;
 		};
 
+		/// Represents a shared string, a common optimization in OOXML formats.
 		struct SharedString
 		{
 			std::string m_text;
 		};
 
+		/// Type alias for a vector of list styles.
 		typedef std::vector<ODFOOXMLListStyle> ListStyleVector;
+		/// Type alias for a map of list style names to their definitions.
+		using ListStyleMap = std::map<std::string, CommonXMLDocumentParser<safety_level>::ListStyleVector>;
+		/// Type alias for a map of comment IDs to Comment objects.
+		using CommentMap = std::map<int, CommonXMLDocumentParser<safety_level>::Comment>;
+		/// Type alias for a map of relationship IDs to Relationship objects.
+		using RelationshipMap = std::map<std::string, CommonXMLDocumentParser<safety_level>::Relationship>;
+		/// Type alias for a vector of shared strings.
+		using SharedStringVector = std::vector<SharedString>;
 
-		typedef std::function<void(XmlStream& xml_stream, XmlParseMode mode,
+		/**
+		 * @brief Defines the function signature for an XML tag command handler.
+		 */
+		typedef std::function<void(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
                                  ZipReader* zipfile, std::string& text,
                                  bool& children_processed, std::string& level_suffix, bool first_on_level)> CommandHandler;
 
 		/**
-			Each xml tag can have associated handler, which is a single function of CommandHandler type.
-			CommonXMLDocumentParser has already a set of functions for some basic tags.
-			ODFOOXMLParser and ODFXMLParser can add new/overwrite existing handlers in order to change/extend default behaviour of
-			parseXmlData/extractText.
-		**/
-		void registerODFOOXMLCommandHandler(const std::string& xml_tag, CommandHandler handler);
+		 * @brief Registers a handler for a specific XML tag.
+		 * 
+		 * Derived classes can use this to add or override behavior for specific XML tags.
+		 * 
+		 * @param xml_tag The XML tag name to handle.
+		 * @param handler The function to execute when the tag is encountered.
+		 */
+		void registerODFOOXMLCommandHandler(const std::string& xml_tag, const CommandHandler& handler);
 
-		///parses xml data for given xml stream. It executes commands for each xml tag
-		std::string parseXmlData(XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile);
+		/**
+		 * @brief Parses XML data from a view of nodes.
+		 * 
+		 * Iterates through the provided XML nodes and executes registered command handlers.
+		 * 
+		 * @param xml_nodes The view of XML nodes to parse.
+		 * @param mode The parsing mode (e.g., PARSE_XML, STRIP_XML).
+		 * @param zipfile Pointer to the ZipReader if the XML is part of a zipped archive (e.g., DOCX, ODT).
+		 * @return The extracted text content.
+		 */
+		std::string parseXmlData(xml::children_view<safety_level> xml_nodes, XmlParseMode mode, ZipReader* zipfile);
 
-		///extracts text from xml data. It uses parseXmlData internally.
-		void extractText(const std::string& xml_contents, XmlParseMode mode, ZipReader* zipfile, std::string& text);
+		/**
+		 * @brief Parses the children of a given XML node.
+		 * 
+		 * @param xml_node The parent node whose children will be parsed.
+		 * @param mode The parsing mode.
+		 * @param zipfile Pointer to the ZipReader if applicable.
+		 * @return The extracted text content from the children.
+		 */
+		std::string parseXmlChildren(xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile);
 
-		///usefull since two parsers use this.
-		void parseODFMetadata(const std::string &xml_content, attributes::Metadata& metadata) const;
+		/**
+		 * @brief Extracts text from raw XML content.
+		 * 
+		 * This is a high-level function that initializes the XML reader and calls parseXmlData.
+		 * 
+		 * @param xml_contents The raw XML string.
+		 * @param mode The parsing mode.
+		 * @param zipfile Pointer to the ZipReader if applicable.
+		 * @param text Output parameter where the extracted text will be appended.
+		 */
+		void extractText(std::string_view xml_contents, XmlParseMode mode, ZipReader* zipfile, std::string& text);
 
-		///this is helpful function to format comment
+		/**
+		 * @brief Parses ODF metadata from XML content.
+		 * @param xml_content The raw XML content of the metadata file.
+		 * @param metadata The structure to populate with parsed metadata.
+		 */
+		void parseODFMetadata(std::string_view xml_content, attributes::Metadata& metadata) const;
+
+		/**
+		 * @brief Formats a comment for output.
+		 * @param author The author of the comment.
+		 * @param time The timestamp of the comment.
+		 * @param text The content of the comment.
+		 * @return The formatted comment string.
+		 */
 		const std::string formatComment(const std::string& author, const std::string& time, const std::string& text);
 
-		///Returns information "on how many list objects" we are. Returns 0 if we are not parsing any list actually. Should only be used inside command handlers
+		/// Returns the current nesting depth of lists.
 		size_t& getListDepth();
 
-		///gets list styles for reading and writing
-		std::map<std::string, ListStyleVector>& getListStyles();
+		/// Gets the map of list styles.
+		ListStyleMap& getListStyles();
 
-		///gets comments for reading and writing
-		std::map<int, Comment>& getComments();
+		/// Gets the map of comments.
+		CommentMap& getComments();
 
-		///gets relationships for reading and writing
-		std::map<std::string, Relationship>& getRelationships();
+		/// Gets the map of relationships.
+		RelationshipMap& getRelationships();
 
-		///gets vector of shared strings for reading and writing
-		std::vector<SharedString>& getSharedStrings();
+		/// Gets the vector of shared strings.
+		SharedStringVector& getSharedStrings();
 
-		///checks if writing to the text is disabled (only inside onUnregisteredCommand!)
+		/// Checks if text extraction is currently disabled.
 		bool disabledText() const;
 
-		///gets options which has been set for XmlStream object. (xmlParserOption from libxml2)
-		XmlStream::no_blanks no_blanks() const;
+		/// Gets the current blank node handling policy.
+		xml::reader_blanks blanks() const;
 
-		///disables modifying text data inside method onUnregisteredCommand
+		/// Enables or disables text extraction.
 		void disableText(bool disable);
 
-		///sets options for XmlStream objects. (xmlParserOption from libxml2)
-		void set_no_blanks(XmlStream::no_blanks no_blanks);
+		/// Sets the blank node handling policy for the XML reader.
+		void set_blanks(xml::reader_blanks blanks);
 
+		/// Controls whether signal emission (callbacks) is active.
 		void activeEmittingSignals(bool flag);
 
 	//public interface
 	public:
+		/**
+		 * @brief Default constructor.
+		 */
 		CommonXMLDocumentParser();
 
 	protected:
+		/**
+		 * @brief Helper class to manage the context stack scope.
+		 * Pushes a new context on construction and pops it on destruction.
+		 */
 		class scoped_context_stack_push
 		{
 		public:
+			/**
+			 * @brief Constructs the helper and pushes a new context onto the parser's stack.
+			 * @param parser The parser instance.
+			 * @param emit_message The message callbacks for the new context.
+			 */
 			scoped_context_stack_push(CommonXMLDocumentParser& parser, const message_callbacks& emit_message);
+			/// Destructor that pops the context from the parser's stack.
 			~scoped_context_stack_push();
 		private:
 			CommonXMLDocumentParser& m_parser;

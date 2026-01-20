@@ -9,32 +9,41 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#include "serialization_time.h"
+#ifndef DOCWIRE_XML_ITERATOR_STATE_H
+#define DOCWIRE_XML_ITERATOR_STATE_H
 
-#include <string>
+#include "xml_reader.h"
 
-namespace docwire::serialization
+namespace docwire::xml
 {
 
-namespace
+/**
+ * @brief Shared state for XML iterators to coordinate traversal.
+ * @tparam safety_level The safety policy.
+ */
+template <safety_policy safety_level>
+struct iterator_state
 {
-    // Helper to convert an integer to a two-digit, zero-padded string.
-    std::string to_string_padded(int value)
-    {
-        if (value >= 0 && value < 10)
-            return "0" + std::to_string(value);
-        else
-            return std::to_string(value);
-    }
+	/**
+	 * @brief Constructs the state with a reference to the XML reader.
+	 */
+	explicit iterator_state(reader<safety_level>& reader) : xml_reader(reader) {}
+	/// Reference to the underlying XML reader.
+	reader<safety_level>& xml_reader;
+
+	/**
+	 * @brief A shared flag indicating that the reader has been advanced one step ahead.
+	 *
+	 * This is a crucial part of the shared state for coordinating multiple iterators
+	 * operating on the single underlying xml::reader cursor.
+	 * When an iterator (like descendants_view::iterator) needs to "peek ahead" to check
+	 * a stopping condition, it advances the reader and sets this flag. The next iterator
+	 * to be incremented must check this flag, consume the current node without advancing
+	 * the reader again, and then clear the flag. It MUST be part of the shared state.
+	 */
+	bool m_node_ahead_flag = false;
+};
+
 }
 
-value serializer<struct tm>::full(const struct tm& t) const
-{
-    // We build the string manually for performance, portability, and thread-safety.
-    return std::to_string(t.tm_year + 1900) + '-' +
-            to_string_padded(t.tm_mon + 1) + '-' + to_string_padded(t.tm_mday) + ' ' +
-            to_string_padded(t.tm_hour) + ':' + to_string_padded(t.tm_min) + ':' +
-            to_string_padded(t.tm_sec);
-}
-
-} // namespace docwire::serialization
+#endif

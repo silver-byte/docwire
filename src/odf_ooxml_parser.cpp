@@ -20,19 +20,21 @@
 #include "error_tags.h"
 #include "log_entry.h"
 #include "log_scope.h"
-#include <map>
 #include "make_error.h"
+#include "convert_chrono.h" // IWYU pragma: keep 
+#include "convert_numeric.h" // IWYU pragma: keep
 #include "misc.h"
 #include <mutex>
 #include "nested_exception.h"
+#include "xml_attributes.h"
 #include <regex>
 #include "serialization_data_source.h" // IWYU pragma: keep
 #include "serialization_enum.h" // IWYU pragma: keep
 #include "serialization_message.h" // IWYU pragma: keep
 #include <stdlib.h>
 #include <string.h>
-#include "xml_stream.h"
 #include "throw_if.h"
+#include "xml_root_element.h"
 
 namespace docwire
 {
@@ -86,10 +88,15 @@ const std::vector<mime_type> supported_mime_types =
 
 } // anonymous namespace
 
-template<>
-struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
+template <safety_policy safety_level>
+struct pimpl_impl<ODFOOXMLParser<safety_level>> : with_pimpl_owner<ODFOOXMLParser<safety_level>>
 {
-	pimpl_impl(ODFOOXMLParser& owner) : with_pimpl_owner{owner} {}
+	using owner_type = ODFOOXMLParser<safety_level>;
+	using Comment = owner_type::Comment;
+	using Relationship = owner_type::Relationship;
+	using with_pimpl_owner<ODFOOXMLParser<safety_level>>::owner;
+
+	pimpl_impl(ODFOOXMLParser<safety_level>& owner) : with_pimpl_owner<ODFOOXMLParser<safety_level>>{owner} {}
 
 	std::stack<context> m_context_stack;
 
@@ -99,7 +106,7 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 		return m_context_stack.top().emit_message(std::forward<T>(object));
 	}
 
-		static void onOOXMLAttribute(XmlStream& xml_stream, XmlParseMode mode,
+		static void onOOXMLAttribute(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
 									 const ZipReader* zipfile, std::string& text,
 									 bool& children_processed, std::string& level_suffix, bool first_on_level)
 		{
@@ -107,56 +114,43 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 			children_processed = true;
 		}
 
-    void onOOXMLRow(XmlStream& xml_stream, XmlParseMode mode,
+    void onOOXMLRow(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
                            ZipReader* zipfile, std::string& text,
                            bool& children_processed, std::string& level_suffix, bool first_on_level)
     {
 		log_scope();
-		ODFOOXMLParser& p = owner();
+		owner_type& p = owner();
 		p.setLastOOXMLColNum(0);
-		int expected_row_num = p.lastOOXMLRowNum() + 1;
-		std::string row_num_attr = xml_stream.attribute("r");
-		try
+		const int expected_row_num = p.lastOOXMLRowNum() + 1;
+		int row_num = attribute_value<int>(xml_node, "r").value_or(expected_row_num);
+		if (row_num > expected_row_num)
 		{
-			int row_num = std::stoi(row_num_attr);
-			if (row_num > expected_row_num)
+			int empty_rows_count = row_num - expected_row_num;
+			for (int i = 0; i < empty_rows_count; i++)
 			{
-				int empty_rows_count = row_num - expected_row_num;
-				for (int i = 0; i < empty_rows_count; i++)
-				{
-					emit_message(document::TableRow{});
-					emit_message(document::CloseTableRow{});
-				}
+				emit_message(document::TableRow{});
+				emit_message(document::CloseTableRow{});
 			}
-			p.setLastOOXMLRowNum(row_num);
 		}
-		catch (const std::invalid_argument& ex)
-		{
-			// we accept when row id attribute is incorrect or missing
-			p.setLastOOXMLRowNum(expected_row_num);
-		}
+		p.setLastOOXMLRowNum(row_num);
       emit_message(document::TableRow{});
-      xml_stream.levelDown();
-      text += owner().parseXmlData(xml_stream, mode, zipfile);
-      xml_stream.levelUp();
+      text += owner().parseXmlChildren(xml_node, mode, zipfile);
       emit_message(document::CloseTableRow{});
     }
 
-	void onOOXMLSheetData(XmlStream& xml_stream, XmlParseMode mode,
+	void onOOXMLSheetData(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
                          ZipReader* zipfile, std::string& text,
                          bool& children_processed, std::string& level_suffix, bool first_on_level)
   {
 	  log_scope();
-	  ODFOOXMLParser& p = owner();
+	  owner_type& p = owner();
 	  p.setLastOOXMLRowNum(0);
     emit_message(document::Table{});
-    xml_stream.levelDown();
-    text += p.parseXmlData(xml_stream, mode, zipfile);
-    xml_stream.levelUp();
+    text += p.parseXmlChildren(xml_node, mode, zipfile);
     emit_message(document::CloseTable{});
   }
 
-	void onOOXMLCell(XmlStream& xml_stream, XmlParseMode mode,
+	void onOOXMLCell(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
 								ZipReader* zipfile, std::string& text,
 								bool& children_processed, std::string& level_suffix, bool first_on_level)
 		{
@@ -165,9 +159,9 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
       {
 				text += "\t";
       }
-			ODFOOXMLParser& p = owner();
+			owner_type& p = owner();
 			int expected_col_num = p.lastOOXMLColNum() + 1;
-			std::string cell_addr_attr = xml_stream.attribute("r");
+			std::string cell_addr_attr { attribute_value(xml_node, "r").value_or("") };
 			bool matched;
 			std::smatch match;
 			static std::mutex cell_addr_rgx_mutex;
@@ -201,13 +195,11 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 				p.setLastOOXMLColNum(expected_col_num);
 			}
 			emit_message(document::TableCell{});
-			if (xml_stream.attribute("t") == "s")
+			if (attribute_value(xml_node, "t") == "s")
 			{
-				xml_stream.levelDown();
-        		p.activeEmittingSignals(false);
-				int shared_string_index = str_to_int(p.parseXmlData(xml_stream, mode, zipfile));
+				p.activeEmittingSignals(false);
+				int shared_string_index = convert::to<int>(p.parseXmlChildren(xml_node, mode, zipfile));
         		owner().activeEmittingSignals(true);
-				xml_stream.levelUp();
 				if (shared_string_index < p.getSharedStrings().size())
 				{
 					text += p.getSharedStrings()[shared_string_index].m_text;
@@ -216,16 +208,14 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 			}
 			else
 			{
-				xml_stream.levelDown();
-    			text += p.parseXmlData(xml_stream, mode, zipfile);
-				xml_stream.levelUp();
+    			text += p.parseXmlChildren(xml_node, mode, zipfile);
 			}
 			emit_message(document::CloseTableCell{});
 			level_suffix = "\n";
 			children_processed = true;
 		}
 
-		static void onOOXMLHeaderFooter(XmlStream& xml_stream, XmlParseMode mode,
+		static void onOOXMLHeaderFooter(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
 										const ZipReader* zipfile, std::string& text,
 										bool& children_processed, std::string& level_suffix, bool first_on_level)
 		{
@@ -235,15 +225,15 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 			children_processed = true;
 		}
 
-	void onOOXMLCommentReference(XmlStream& xml_stream, XmlParseMode mode,
+	void onOOXMLCommentReference(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
 											const ZipReader* zipfile, std::string& text,
 											bool& children_processed, std::string& level_suffix, bool first_on_level)
 		{
 			log_scope();
-			int comment_id = str_to_int(xml_stream.attribute("id"));
-			if (owner().getComments().count(comment_id))
+			auto comment_id = attribute_value<int>(xml_node, "id");
+			if (comment_id && owner().getComments().count(*comment_id))
 			{
-				const ODFOOXMLParser::Comment& c = owner().getComments()[comment_id];
+				const Comment& c = owner().getComments()[*comment_id];
 				text += owner().formatComment(c.m_author, c.m_time, c.m_text);
 				emit_message(document::Comment{.author = c.m_author, .time = c.m_time, .comment = c.m_text});
 			}
@@ -251,19 +241,17 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 				emit_message(make_error_ptr("Comment not found, skipping", comment_id));
 		}
 
-	void onOOXMLHyperlink(XmlStream& xml_stream, XmlParseMode mode,
+	void onOOXMLHyperlink(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
 								  ZipReader* zipfile, std::string& text,
 								  bool& children_processed, std::string& level_suffix, bool first_on_level)
 		{
 			log_scope();
-			std::string rid = xml_stream.attribute("id");
+			std::string rid { attribute_value(xml_node, "id").value_or("") };
 			if (owner().getRelationships().count(rid))
 			{
-				const ODFOOXMLParser::Relationship& r = owner().getRelationships()[rid];
+				const Relationship& r = owner().getRelationships()[rid];
 				emit_message(document::Link{.url = r.m_target});
-				xml_stream.levelDown();
-				std::string link_text = owner().parseXmlData(xml_stream, mode, zipfile);
-				xml_stream.levelUp();
+				std::string link_text = owner().parseXmlChildren(xml_node, mode, zipfile);
 				children_processed = true;
 				text += formatUrl(r.m_target, link_text);
 				emit_message(document::CloseLink{});
@@ -272,7 +260,7 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 				emit_message(make_error_ptr("Relationship not found, skipping", rid));
 		}
 
-		static void onOOXMLInstrtext(XmlStream& xml_stream, XmlParseMode mode,
+		static void onOOXMLInstrtext(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
 									 const ZipReader* zipfile, std::string& text,
 									 bool& children_processed, std::string& level_suffix, bool first_on_level)
 		{
@@ -280,7 +268,7 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 			children_processed = true;
 		}
 
-		static void onOOXMLTableStyleId(XmlStream& xml_stream, XmlParseMode mode,
+		static void onOOXMLTableStyleId(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
 									 const ZipReader* zipfile, std::string& text,
 									 bool& children_processed, std::string& level_suffix, bool first_on_level)
 		{
@@ -290,20 +278,18 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 		}
 
   void
-  onOOXMLStyle(XmlStream& xml_stream, XmlParseMode mode,
+  onOOXMLStyle(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
                                ZipReader* zipfile, std::string& text,
                                bool& children_processed, std::string& level_suffix, bool first_on_level)
   {
     log_scope();
-    xml_stream.levelDown();
     owner().activeEmittingSignals(false);
-    text += owner().parseXmlData(xml_stream, mode, zipfile);
-		xml_stream.levelUp();
+    text += owner().parseXmlChildren(xml_node, mode, zipfile);
     children_processed = true;
     owner().activeEmittingSignals(true);
   }
 
-	void onOOXMLBreak(XmlStream& xml_stream, XmlParseMode mode,
+	void onOOXMLBreak(xml::node_ref<safety_level>& xml_node, XmlParseMode mode,
 								const ZipReader* zipfile, std::string& text,
 								bool& children_processed, std::string& level_suffix, bool first_on_level) const
 	{
@@ -337,24 +323,22 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 			xml = content;
 		try
 		{
-			XmlStream xml_stream(xml, owner().no_blanks());
-			xml_stream.levelDown();
-			while (xml_stream)
+			xml::reader<safety_level> xml_reader(xml, owner().blanks());
+			for (auto node: children(root_element(xml_reader)))
 			{
-				if (xml_stream.name() == "comment")
+				if (node.name() == "comment")
 				{
-					int id = str_to_int(xml_stream.attribute("id"));
-					std::string author = xml_stream.attribute("author");
-					std::string date = xml_stream.attribute("date");
-					xml_stream.levelDown();
+					auto id = attribute_value<int>(node, "id");
+					if (!id.has_value())
+						continue;
+					std::string author { xml::attribute_value(node, "author").value_or("") };
+					std::string date { xml::attribute_value(node, "date").value_or("") };
 					owner().activeEmittingSignals(false);
-					std::string text = owner().parseXmlData(xml_stream, mode, &zipfile);
+					std::string text = owner().parseXmlChildren(node, mode, &zipfile);
 					owner().activeEmittingSignals(true);
-					xml_stream.levelUp();
-					CommonXMLDocumentParser::Comment c(author, date, text);
-					owner().getComments()[id] = c;
+					Comment c(author, date, text);
+					owner().getComments()[*id] = c;
 				}
-				xml_stream.next();
 			}
 		}
 		catch (const std::exception& e)
@@ -378,18 +362,21 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 			xml = content;
 		try
 		{
-			XmlStream xml_stream(xml, owner().no_blanks());
-			xml_stream.levelDown();
-			while (xml_stream)
+			xml::reader xml_reader(xml, owner().blanks());
+			for (auto node: children(root_element(xml_reader)))
 			{
-				if (xml_stream.name() == "Relationship")
+				if (node.name() == "Relationship")
 				{
-					std::string id = xml_stream.attribute("Id");
-					std::string target = xml_stream.attribute("Target");
-					CommonXMLDocumentParser::Relationship r{target};
+					std::string id { xml::attribute_value(node, "Id").value_or("") };
+					std::string target { xml::attribute_value(node, "Target").value_or("") };
+
+					if (id.empty() || target.empty()) {
+						// Handle error or skip
+						continue;
+					}
+					Relationship r{target};
 					owner().getRelationships()[id] = r;
 				}
-				xml_stream.next();
 			}
 		}
 		catch (const std::exception& e)
@@ -413,8 +400,8 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 			xml = content;
 		try
 		{
-			XmlStream xml_stream(xml, owner().no_blanks());
-			owner().parseXmlData(xml_stream, mode, &zipfile);
+			xml::reader<safety_level> xml_reader(xml, owner().blanks());
+			owner().parseXmlData(children(xml_reader), mode, &zipfile);
 		}
 		catch (const std::exception& e)
 		{
@@ -423,78 +410,84 @@ struct pimpl_impl<ODFOOXMLParser> : with_pimpl_owner<ODFOOXMLParser>
 	}
 };
 
-ODFOOXMLParser::ODFOOXMLParser()
+template <safety_policy safety_level>
+ODFOOXMLParser<safety_level>::ODFOOXMLParser()
 {
-	registerODFOOXMLCommandHandler("attrName", [impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("attrName", [impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLAttribute(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLAttribute(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
-	registerODFOOXMLCommandHandler("c", [&impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("c", [&impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLCell(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLCell(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
-    registerODFOOXMLCommandHandler("row", [&impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+    registerODFOOXMLCommandHandler("row", [&impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLRow(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLRow(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
-    registerODFOOXMLCommandHandler("sheetData", [&impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+    registerODFOOXMLCommandHandler("sheetData", [&impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLSheetData(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLSheetData(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
-	registerODFOOXMLCommandHandler("headerFooter", [&impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("headerFooter", [&impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLHeaderFooter(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLHeaderFooter(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
-	registerODFOOXMLCommandHandler("commentReference", [&impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("commentReference", [&impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLCommentReference(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLCommentReference(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
-	registerODFOOXMLCommandHandler("hyperlink", [&impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("hyperlink", [&impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLHyperlink(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLHyperlink(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
-	registerODFOOXMLCommandHandler("br", [&impl=impl()](XmlStream& xml_stream, XmlParseMode mode, const ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("br", [&impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, const ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLBreak(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLBreak(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
     });
-	registerODFOOXMLCommandHandler("document-styles", [&impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("document-styles", [&impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLStyle(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLStyle(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
     });
-	registerODFOOXMLCommandHandler("instrText", [impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("instrText", [impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLInstrtext(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLInstrtext(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
-	registerODFOOXMLCommandHandler("tableStyleId", [impl=impl()](XmlStream& xml_stream, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
+	registerODFOOXMLCommandHandler("tableStyleId", [impl=impl()](xml::node_ref<safety_level>& xml_node, XmlParseMode mode, ZipReader* zipfile, std::string& text, bool& children_processed, std::string& level_suffix, bool first_on_level)
 	{
-		impl.onOOXMLTableStyleId(xml_stream, mode, zipfile, text, children_processed, level_suffix, first_on_level);
+		impl.onOOXMLTableStyleId(xml_node, mode, zipfile, text, children_processed, level_suffix, first_on_level);
 	});
 }
 
-int ODFOOXMLParser::lastOOXMLRowNum()
+template <safety_policy safety_level>
+int ODFOOXMLParser<safety_level>::lastOOXMLRowNum()
 {
 	return impl().m_context_stack.top().last_ooxml_row_num;
 }
 
-void ODFOOXMLParser::setLastOOXMLRowNum(int r)
+template <safety_policy safety_level>
+void ODFOOXMLParser<safety_level>::setLastOOXMLRowNum(int r)
 {
 	impl().m_context_stack.top().last_ooxml_row_num = r;
 }
 
-int ODFOOXMLParser::lastOOXMLColNum()
+template <safety_policy safety_level>
+int ODFOOXMLParser<safety_level>::lastOOXMLColNum()
 {
 	return impl().m_context_stack.top().last_ooxml_col_num;
 }
 
-void ODFOOXMLParser::setLastOOXMLColNum(int c)
+template <safety_policy safety_level>
+void ODFOOXMLParser<safety_level>::setLastOOXMLColNum(int c)
 {
 	impl().m_context_stack.top().last_ooxml_col_num = c;
 }
 
-void ODFOOXMLParser::parse(const data_source& data, XmlParseMode mode, const message_callbacks& emit_message)
+template <safety_policy safety_level>
+void ODFOOXMLParser<safety_level>::parse(const data_source& data, XmlParseMode mode, const message_callbacks& emit_message)
 {
 	log_scope(data, mode);
-	ZipReader zipfile{data};
+	ZipReader zipfile { data };
 	try
 	{
 		zipfile.open();
@@ -512,7 +505,7 @@ void ODFOOXMLParser::parse(const data_source& data, XmlParseMode mode, const mes
 	if (main_file_name == "content.xml")
 	{
 		impl().assertODFFileIsNotEncrypted(zipfile);
-		set_no_blanks(XmlStream::no_blanks{true});
+		set_blanks(xml::reader_blanks::ignore);
 	}
 	if (zipfile.exists("word/comments.xml"))
 	{
@@ -576,21 +569,17 @@ void ODFOOXMLParser::parse(const data_source& data, XmlParseMode mode, const mes
 				throw_if(mode == STRIP_XML, "Stripping XML is not possible for xlsx files", errors::program_logic{});
 			try
 			{
-				XmlStream xml_stream(xml, no_blanks());
-				xml_stream.levelDown();
-				while (xml_stream)
+				xml::reader<safety_level> xml_reader(xml, blanks());
+				for (auto node: children(root_element(xml_reader)))
 				{
-					if (xml_stream.name() == "si")
+					if (node.name() == "si")
 					{
-						xml_stream.levelDown();
 						SharedString shared_string;
-            activeEmittingSignals(false);
-						shared_string.m_text = parseXmlData(xml_stream, mode, &zipfile);
-            activeEmittingSignals(true);
+            			activeEmittingSignals(false);
+						shared_string.m_text = parseXmlChildren(node, mode, &zipfile);
+            			activeEmittingSignals(true);
 						getSharedStrings().push_back(shared_string);
-						xml_stream.levelUp();
 					}
-					xml_stream.next();
 				}
 			}
 			catch (const std::exception& e)
@@ -633,7 +622,8 @@ void ODFOOXMLParser::parse(const data_source& data, XmlParseMode mode, const mes
 	}
 }
 
-attributes::Metadata ODFOOXMLParser::metaData(ZipReader& zipfile) const
+template <safety_policy safety_level>
+attributes::Metadata ODFOOXMLParser<safety_level>::metaData(ZipReader& zipfile) const
 {
 	log_scope();
 	attributes::Metadata meta;
@@ -657,27 +647,17 @@ attributes::Metadata ODFOOXMLParser::metaData(ZipReader& zipfile) const
 		throw_if (!zipfile.read("docProps/core.xml", &core_xml), "Error reading XML file from ZIP file", std::make_pair("file_name", "docProps/core.xml"));
 		try
 		{
-			XmlStream xml_stream(core_xml, no_blanks());
-			xml_stream.levelDown();
-			while (xml_stream)
+			xml::reader xml_reader(core_xml, blanks());
+			for (auto node: children(root_element(xml_reader)))
 			{
-				if (xml_stream.name() == "creator")
-					meta.author = xml_stream.stringValue();
-				if (xml_stream.name() == "created")
-				{
-					tm creation_date;
-					string_to_date(xml_stream.stringValue(), creation_date);
-					meta.creation_date = creation_date;
-				}
-				if (xml_stream.name() == "lastModifiedBy")
-					meta.last_modified_by = xml_stream.stringValue();
-				if (xml_stream.name() == "modified")
-				{
-					tm last_modification_date;
-					string_to_date(xml_stream.stringValue(), last_modification_date);
-					meta.last_modification_date = last_modification_date;
-				}
-				xml_stream.next();
+				if (node.name() == "creator")
+					meta.author = std::string(node.string_value());
+				if (node.name() == "created")
+                    meta.creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{node.string_value()});
+				if (node.name() == "lastModifiedBy")
+					meta.last_modified_by = std::string(node.string_value());
+				if (node.name() == "modified")
+                    meta.last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{node.string_value()});
 			}
 		}
 		catch (const std::exception& e)
@@ -689,15 +669,13 @@ attributes::Metadata ODFOOXMLParser::metaData(ZipReader& zipfile) const
 		throw_if (!zipfile.read("docProps/app.xml", &app_xml), "Error reading XML file from ZIP file", std::make_pair("file_name", "docProps/app.xml"));
 		try
 		{
-			XmlStream app_stream(app_xml, no_blanks());
-			app_stream.levelDown();
-			while (app_stream)
+			xml::reader app_stream(app_xml, blanks());
+			for (auto node: children(root_element(app_stream)))
 			{
-				if (app_stream.name() == "Pages")
-					meta.page_count = str_to_int(app_stream.stringValue());
-				if (app_stream.name() == "Words")
-					meta.word_count = str_to_int(app_stream.stringValue());
-				app_stream.next();
+				if (node.name() == "Pages")
+					meta.page_count = convert::try_to<int>(node.string_value());
+				if (node.name() == "Words")
+					meta.word_count = convert::try_to<int>(node.string_value());
 			}
 		}
 		catch (const std::exception& e)
@@ -736,16 +714,17 @@ attributes::Metadata ODFOOXMLParser::metaData(ZipReader& zipfile) const
 	return meta;
 }
 
-void
-ODFOOXMLParser::parse(const data_source& data, const message_callbacks& emit_message)
+template <safety_policy safety_level>
+void ODFOOXMLParser<safety_level>::parse(const data_source& data, const message_callbacks& emit_message)
 {
 	log_scope(data);
-	CommonXMLDocumentParser::scoped_context_stack_push base_context_guard{*this, emit_message};
+	scoped_context_stack_push base_context_guard{*this, emit_message};
 	scoped::stack_push<context> context_guard{impl().m_context_stack, context{emit_message}};
 	parse(data, XmlParseMode::PARSE_XML, emit_message);
 }
 
-continuation ODFOOXMLParser::operator()(message_ptr msg, const message_callbacks& emit_message)
+template <safety_policy safety_level>
+continuation ODFOOXMLParser<safety_level>::operator()(message_ptr msg, const message_callbacks& emit_message)
 {
 	log_scope(msg);
 	if (!msg->is<data_source>())
@@ -762,5 +741,8 @@ continuation ODFOOXMLParser::operator()(message_ptr msg, const message_callbacks
 	parse(data, emit_message); // Call the existing public parse method
 	return continuation::proceed;
 }
+
+template class DOCWIRE_ODF_OOXML_EXPORT ODFOOXMLParser<strict>;
+template class DOCWIRE_ODF_OOXML_EXPORT ODFOOXMLParser<relaxed>;
 
 } // namespace docwire

@@ -10,6 +10,10 @@ find_package(Boost REQUIRED COMPONENTS json)
 target_link_libraries(api_tests PRIVATE Boost::json)
 target_include_directories(api_tests PRIVATE ${Boost_INCLUDE_DIRS})
 
+add_executable(xml_tests xml_tests.cpp)
+target_link_libraries(xml_tests PRIVATE docwire_core docwire_xml GTest::gtest GTest::gmock)
+target_compile_definitions(xml_tests PRIVATE DOCWIRE_ENABLE_SHORT_MACRO_NAMES)
+
 file(GLOB test_files *)
 list(FILTER test_files EXCLUDE REGEX ".*\\.cpp$")
 file(COPY ${test_files} DESTINATION .)
@@ -20,6 +24,9 @@ include(GoogleTest)
 # as it avoids the overhead of starting a new process for each of the 700+ tests.
 add_test(NAME api_tests COMMAND api_tests)
 set_property(TEST api_tests PROPERTY LABELS "is_api_test")
+
+add_test(NAME xml_tests COMMAND xml_tests)
+set_property(TEST xml_tests PROPERTY LABELS "is_api_test")
 
 # This script verifies that snippets in README.md are consistent with their corresponding full example source files
 # and that the README structure is correct. It works by:
@@ -165,7 +172,8 @@ foreach(example IN ITEMS
 		openai_find_image
 		openai_embedding
 		reuse_chain
-		join_transformers)
+		join_transformers
+		xml_parsing_example)
 	message(STATUS "Adding test ${example}")
 	add_executable(${example} ${example}.cpp)
 	target_include_directories(${example} PUBLIC ../src)

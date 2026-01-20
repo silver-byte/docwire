@@ -1,7 +1,10 @@
 add_library(docwire_core SHARED
     charset_converter.cpp
+    convert_chrono.cpp
+    convert_numeric.cpp
     cosine_similarity.cpp
     data_source.cpp
+    debug_assert.cpp
     diagnostic_message.cpp
     entities.cpp
     environment.cpp
@@ -27,7 +30,6 @@ add_library(docwire_core SHARED
     parsing_chain.cpp
     resource_path.cpp
     serialization_thread_id.cpp
-    serialization_time.cpp
     serialization_typeindex.cpp
     type_name.cpp
     unique_identifier.cpp

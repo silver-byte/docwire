@@ -11,6 +11,7 @@
 
 #include "iwork_parser.h"
 #include "attributes.h"
+#include "convert_chrono.h" // IWYU pragma: keep
 #include "data_source.h"
 #include "document_elements.h"
 #include "error_tags.h"
@@ -30,7 +31,6 @@
 #include <list>
 #include <vector>
 #include <cmath>
-#include "misc.h"
 
 namespace docwire
 {
@@ -1882,19 +1882,17 @@ struct pimpl_impl<IWorkParser> : pimpl_impl_base
 					}
 					if (m_creation_date.length() > 0)
 					{
-						tm creation_date;
-						if (string_to_date(m_creation_date, creation_date))
-							m_metadata->creation_date = creation_date;
-						else
-							non_fatal_error_handler(make_error_ptr("Error occured during parsing date", m_creation_date));
+					if (auto creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{m_creation_date}))
+						m_metadata->creation_date = creation_date;
+					else
+						non_fatal_error_handler(make_error_ptr("Error occurred during parsing date", m_creation_date));
 					}
 					if (m_last_modify_date.length() > 0)
 					{
-						tm last_modification_date;
-						if (string_to_date(m_last_modify_date, last_modification_date))
-							m_metadata->last_modification_date = last_modification_date;
-						else
-							non_fatal_error_handler(make_error_ptr("Error occured during parsing date", m_last_modify_date));
+					if (auto last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{m_last_modify_date}))
+						m_metadata->last_modification_date = last_modification_date;
+					else
+						non_fatal_error_handler(make_error_ptr("Error occurred during parsing date", m_last_modify_date));
 					}
 					return;
 				}

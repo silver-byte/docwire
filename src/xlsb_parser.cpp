@@ -14,6 +14,7 @@
 #include "charset_converter.h"
 #include "attributes.h"
 #include "binary_reader.h"
+#include "convert_chrono.h" // IWYU pragma: keep
 #include <cstring>
 #include "data_source.h"
 #include "document_elements.h"
@@ -617,9 +618,8 @@ struct pimpl_impl<XLSBParser> : pimpl_impl_base
 			if (creation_date.find(">") != std::string::npos)
 			{
 				creation_date.erase(0, creation_date.find(">") + 1);
-				tm creation_date_tm;
-				if (creation_date.length() > 0 && string_to_date(creation_date, creation_date_tm))
-					metadata.creation_date = creation_date_tm;
+				if (auto creation_date_tp = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{creation_date}))
+					metadata.creation_date = creation_date_tp;
 			}
 		}
 		bool last_modification_date_exist = data.find("<dcterms:modified/>") == std::string::npos && data.find("<dcterms:modified") != std::string::npos;
@@ -631,9 +631,8 @@ struct pimpl_impl<XLSBParser> : pimpl_impl_base
 			if (last_modification_date.find(">") != std::string::npos)
 			{
 				last_modification_date.erase(0, last_modification_date.find(">") + 1);
-				tm last_modification_date_tm;
-				if (last_modification_date.length() > 0 && string_to_date(last_modification_date, last_modification_date_tm))
-					metadata.last_modification_date = last_modification_date_tm;
+				if (auto last_modification_date_tp = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{last_modification_date}))
+					metadata.last_modification_date = last_modification_date_tp;
 			}
 		}
 	}

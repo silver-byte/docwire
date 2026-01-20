@@ -1,3 +1,55 @@
+## Version 2026.01.20
+
+This release introduces a major overhaul of the SDK's core, focusing on modern C++20 features for XML parsing, robust type-safe data conversions, and configurable safety policies. Significant architectural changes have been made to enhance resilience against partial failures in parsers, improve memory management, and standardize date/time handling using `std::chrono`. The update also includes new utilities for named parameters and non-null or in-range assertions, alongside numerous fixes and documentation improvements.
+
+> The XML stream, a new path it takes,  
+> With C++20, a modern API awakes.  
+> Safety policies, strict or relaxed,  
+> Data conversions, precisely taxed.  
+> Partial failures, now gracefully met,  
+> `std::chrono` dates, no more regret.  
+> A robust foundation, strong and so keen,  
+> DocWire's future, brightly foreseen.  
+> ✨🚀🛡️
+
+- **Features**
+  - **Modern C++20 XML Parsing API**: Introduced a new, expressive, and safe API for parsing XML documents, featuring a single-pass, forward-only reader and utilizing C++20 ranges and views for efficient node filtering and manipulation. This replaces the legacy `XmlStream` with `xml::reader`, `xml::node_ref`, `xml::children`, and `xml::attributes`.
+  - **Configurable Safety Policies**: Implemented a general concept of safety policies (`strict` vs. `relaxed`) allowing developers to choose between robust error-checking (throwing exceptions on violations) and maximum performance (omitting checks). This is applied through `checked` and `not_null` wrappers, and the `enforce` utility.
+  - **Type-Safe Data Conversion Framework**: Introduced a new `convert` namespace with `try_to` and `to` functions for robust, type-safe data conversions, replacing manual string-to-numeric/date conversions. This framework supports custom format tags like `with::date_format` and `with::partial_match`.
+  - **C++20 `std::chrono` for Date/Time Handling**: Replaced all `struct tm` usage with `std::chrono::sys_seconds` for date and time attributes and conversions, enhancing type safety and robustness across the SDK.
+  - **Partial Failure Resilience in Parsers**: Implemented `message_counters` and `make_counted_message_callbacks` in `archives_parser`, `EMLParser`, `HTMLParser`, `PDFParser`, and `PSTParser` to allow processing to continue even if some sub-items fail, and to detect total failures.
+  - **Base64 Decoding**: Added a `base64::decode` function and support for parsing `data:` URLs in HTML image sources.
+  - **Named Parameters and Structured Bindings**: Introduced `named::value` and `operator""_v` literal for creating named parameters, with full support for C++ structured bindings.
+  - **Non-Null Assertion Utility**: Added `not_null` wrapper for pointer-like types, enforcing non-null invariants based on the configured `safety_policy`. Includes `assume_not_null` for unchecked construction when non-null is guaranteed.
+  - **Ranged Numeric Types**: Introduced `ranged` template for numeric types with compile-time or runtime-checked bounds, along with fluent aliases like `at_least`, `at_most`, `exactly`, and `non_negative`.
+  - **Debug-Only Assertions**: Added `debug_assert` for assertions that are only active in debug builds, providing a mechanism for internal contract checking without runtime overhead in release builds.
+
+- **Improvements**
+  - **HTML Parser Memory Management**: Improved HTML parser by using `std::unique_ptr` for `lxb_html_document_t` and validating head text before CSS parsing to prevent potential crashes.
+  - **PST Parser Robustness**: Enhanced PST parser with `unique_handle` RAII wrappers for `libpff` and `libbfio` resources, ensuring exception-safe cleanup. Fixed destruction order of handles and used `LIBBFIO_OPEN_READ` to prevent accidental file truncation.
+  - **Logging Enhancements**: Refactored `log_scope` macro and `scope` class for better control and zero-cost in release builds. Added `to_log_value` for `docwire::named::value` to improve structured logging.
+  - **Error Reporting**: `make_error_from_tuple` and `make_error_ptr_from_tuple` functions were added for more flexible error creation.
+  - **Efficient String View Access**: Added a `string_view()` method to `data_source` for efficient, allocation-free access to data as `std::string_view` where possible.
+
+- **Refactor**
+  - **XML Parsing Integration**: All XML-based parsers (`CommonXMLDocumentParser`, `ODFOOXMLParser`, `ODFXMLParser`, `XMLParser`) have been refactored to utilize the new C++20 XML parsing API.
+  - **Date/Time Serialization**: Removed `serialization_time.h` as `std::chrono` types are now directly convertible to/from strings via the new `convert` framework.
+  - **`rapidfuzz` Dependency**: Updated the `rapidfuzz` dependency to `rapidfuzz-cpp` to align with the upstream vcpkg port rename.
+  - **`XmlStream` Removal**: The legacy `XmlStream` class and its associated files (`xml_stream.h`, `xml_stream.cpp`) have been removed, replaced by the new `xml::reader` API.
+
+- **Fixes**
+  - **`CommonXMLDocumentParser::onODFOOXMLText`**: Removed a redundant check for the "#text" node name.
+  - **`ODFOOXMLParser::onOOXMLFldData`**: Added a handler to skip `fldData` content in OOXML.
+
+- **Documentation**
+  - **Updated `README.md`**: The `README.md` file has been updated to highlight the new "Modern C++20 XML Parsing" and "Configurable Safety Policies" features, including a new example demonstrating the XML parsing API.
+  - **Doxygen Documentation**: Comprehensive Doxygen documentation has been added for the new XML parsing utilities and helper classes.
+
+- **Tests**
+  - **New XML API Tests**: Added `xml_tests.cpp` and `xml_parsing_example.cpp` to thoroughly test the new C++20 XML parsing API.
+  - **`api_tests.cpp` Enhancements**: Updated `api_tests.cpp` with new tests for `base64::decode`, `convert` from and to `std::chrono`, `named` structured bindings, `not_null` assertions, and `PartialAndTotalFailures` scenarios for `ZIP`, `EML`, `PST`, `HTML`, and `PDF` parsers.
+  - **New Test Files**: Added `embedded_images.html` and `embedded_images.html.out` for testing HTML image processing.
+
 ## Version 2025.10.31
 
 This release introduces a comprehensive overhaul of the SDK's diagnostic and testing infrastructure, centered around a new zero-cost logging framework, a powerful serialization system, and a fluent assertion utility. The error handling mechanism has been significantly enhanced to provide richer, more structured diagnostic messages. This release also modernizes all `README.md` examples, refactors core components for improved performance and thread-safety, and enhances the CI/CD pipeline.

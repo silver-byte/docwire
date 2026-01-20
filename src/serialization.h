@@ -23,7 +23,6 @@
 #include "serialization_message.h"
 #include "serialization_pair.h"
 #include "serialization_thread_id.h"
-#include "serialization_time.h"
 #include "serialization_typeindex.h"
 // IWYU pragma: end_exports
 

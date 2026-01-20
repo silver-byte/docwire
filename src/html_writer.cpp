@@ -9,8 +9,10 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#include <memory>
 #include "html_writer.h"
+
+#include "convert_chrono.h"  // IWYU pragma: keep
+#include <memory>
 #include <map>
 #include "base64.h"
 #include <boost/container/flat_map.hpp>
@@ -19,8 +21,6 @@
 #include <numeric>
 #include "document_elements.h"
 #include <sstream>
-#include "serialization_time.h" // IWYU pragma: keep
-#include "stringification.h"
 #include <typeindex>
 #include <functional>
 
@@ -225,15 +225,15 @@ struct pimpl_impl<HtmlWriter> : pimpl_impl_base
     if (metadata.author)
       meta += "<meta name=\"author\" content=\"" + encoded(*metadata.author) + "\">\n";
     if (metadata.creation_date)
-      meta += "<meta name=\"creation-date\" content=\"" + stringify(*metadata.creation_date) + "\">\n";
+      meta += "<meta name=\"creation-date\" content=\"" + convert::to<std::string>(*metadata.creation_date) + "\">\n";
     if (metadata.last_modified_by)
       meta += "<meta name=\"last-modified-by\" content=\"" + encoded(*metadata.last_modified_by) + "\">\n";
     if (metadata.last_modification_date)
-      meta += "<meta name=\"last-modification-date\" content=\"" + stringify(*metadata.last_modification_date) + "\">\n";
+      meta += "<meta name=\"last-modification-date\" content=\"" + convert::to<std::string>(*metadata.last_modification_date) + "\">\n";
     if (metadata.email_attrs)
     {
       meta += "<meta name=\"from\" content=\"" + encoded(metadata.email_attrs->from) + "\">\n";
-      meta += "<meta name=\"date\" content=\"" + stringify(metadata.email_attrs->date) + "\">\n";
+      meta += "<meta name=\"date\" content=\"" + convert::to<std::string>(metadata.email_attrs->date) + "\">\n";
       meta += "<meta name=\"to\" content=\"" + encoded(*metadata.email_attrs->to) + "\">\n";
       meta += "<meta name=\"subject\" content=\"" + encoded(*metadata.email_attrs->subject) + "\">\n";
       meta += "<meta name=\"reply-to\" content=\"" + encoded(*metadata.email_attrs->reply_to) + "\">\n";

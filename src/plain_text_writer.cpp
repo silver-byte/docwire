@@ -13,7 +13,6 @@
 #include <iostream>
 #include <iomanip>
 #include <ctime>
-#include <cassert>
 #include <sstream>
 #include <typeindex>
 

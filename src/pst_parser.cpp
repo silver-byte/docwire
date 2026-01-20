@@ -32,8 +32,11 @@ extern "C"
 #include "log_entry.h"
 #include "log_scope.h"
 #include "misc.h"
+#include "make_error.h"
+#include "nested_exception.h"
 #include "serialization_message.h" // IWYU pragma: keep
 #include "throw_if.h"
+#include "message_counters.h"
 
 namespace docwire
 {
@@ -61,91 +64,55 @@ inline std::string getAttachmentName(libpff_item_t* item)
 	return std::string(reinterpret_cast<const char*>(buffer.data()));
 }
 
-/**
-	TODO: Consider changing these to just unique_ptr to avoid boilerplate
-*/
-
-struct pffError
+template <typename T, typename Deleter>
+struct unique_handle
 {
-	libpff_error_t* error = nullptr;
-	pffError() = default;
-	pffError(libpff_error_t* error) : error{error} {}
-	~pffError()
+	T* handle = nullptr;
+
+	unique_handle() = default;
+	unique_handle(T* in) : handle{in} {}
+	
+	~unique_handle()
 	{
-		libpff_error_free(&error);
+		if (handle) Deleter{}(handle);
 	}
-	pffError& operator=(pffError&& in)
+
+	unique_handle(unique_handle&& in) noexcept : handle(std::exchange(in.handle, nullptr)) {}
+	
+	unique_handle& operator=(unique_handle&& in) noexcept
 	{
-		auto ptr = std::exchange(error, std::exchange(in.error, nullptr));
-		libpff_error_free(&ptr);
+		if (this != &in)
+		{
+			if (handle) Deleter{}(handle);
+			handle = std::exchange(in.handle, nullptr);
+		}
 		return *this;
 	}
-	pffError(const pffError&) = delete;
-	pffError& operator=(const pffError&) = delete;
-	pffError(pffError&& in)
-	{
-		auto ptr = std::exchange(error, std::exchange(in.error, nullptr));
-		libpff_error_free(&ptr);
-	}
-	operator libpff_error_t*() const
-	{
-		return error;
-	}
-	auto operator&() const
-	{
-		return &error;
-	}
-	operator libpff_error_t*()
-	{
-		return error;
-	}
-	auto operator&()
-	{
-		return &error;
-	}
+
+	unique_handle(const unique_handle&) = delete;
+	unique_handle& operator=(const unique_handle&) = delete;
+
+	operator T*() const { return handle; }
+	T** operator&() { return &handle; }
 };
 
-struct pffItem
-{
-	libpff_item_t* handle = nullptr;
-	pffItem() = default;
-	pffItem(libpff_item_t* in) : handle{in}
-	{
-	}
-	~pffItem()
-	{
-		libpff_item_free(&handle, nullptr);
-	}
-	pffItem& operator=(pffItem&& in)
-	{
-		auto ptr = std::exchange(handle, std::exchange(in.handle, nullptr));
-		libpff_item_free(&ptr, nullptr);
-		return *this;
-	}
-	pffItem(const pffItem&) = delete;
-	pffItem& operator=(const pffItem& in) = delete;
-	pffItem(pffItem&& in)
-	{
-		auto ptr = std::exchange(handle, std::exchange(in.handle, nullptr));
-		libpff_item_free(&ptr, nullptr);
-	}
-	operator libpff_item_t*() const
-	{
-		return handle;
-	}
-	auto operator&() const
-	{
-		return &handle;
-	}
-	operator libpff_item_t*()
-	{
-		return handle;
-	}
-	auto operator&()
-	{
-		return &handle;
-	}
-};
+using pff_error = unique_handle<libpff_error_t, decltype([](libpff_error_t* ptr) { libpff_error_free(&ptr); })>;
+
+using pff_item = unique_handle<libpff_item_t, decltype([](libpff_item_t* ptr) { libpff_item_free(&ptr, nullptr); })>;
+
+using pff_file = unique_handle<libpff_file_t, decltype([](libpff_file_t* ptr) {
+	pff_error error;
+	libpff_file_close(ptr, &error);
+	libpff_file_free(&ptr, &error);
+})>;
+
+using bfio_error = unique_handle<libbfio_error_t, decltype([](libbfio_error_t* ptr) { libbfio_error_free(&ptr); })>;
+
+using bfio_handle = unique_handle<libbfio_handle_t, decltype([](libbfio_handle_t* ptr) {
+	bfio_error error;
+	libbfio_handle_close(ptr, &error);
+	libbfio_handle_free(&ptr, &error);
+})>;
 
 struct RawAttachment
 {
@@ -165,7 +132,7 @@ class Message
   static constexpr uint64_t SHIFT = 11644473600;
 
   public:
-	explicit Message(pffItem in)
+	explicit Message(pff_item in)
 		: _messageHandle{std::move(in)}
 	{
 		log_scope();
@@ -173,7 +140,7 @@ class Message
 
 	std::string getName() const
 	{
-		pffError error;
+		pff_error error;
 		size_t name_size;
     if (libpff_message_get_utf8_subject_size(_messageHandle, &name_size, &error) == 1)
     {
@@ -189,7 +156,7 @@ class Message
 
   std::string getMailSender() const
   {
-    pffError error;
+    pff_error error;
     size_t name_size;
     if (libpff_message_get_utf8_sender_email_address_size(_messageHandle, &name_size, &error) == 1)
     {
@@ -205,7 +172,7 @@ class Message
 
   std::string getMailRecipient() const
   {
-    pffError error;
+    pff_error error;
     size_t name_size;
     if (libpff_message_get_utf8_received_by_email_address_size(_messageHandle, &name_size, &error) == 1)
     {
@@ -267,7 +234,7 @@ class Message
 	{
 		log_scope();
 		int items;
-		pffError err;
+		pff_error err;
     std::vector<RawAttachment> attachments;
     if (libpff_message_get_number_of_attachments(_messageHandle, &items, &err) != 1)
 		{
@@ -275,7 +242,7 @@ class Message
 		}
 		for (int i = 0; i < items; ++i)
 		{
-			pffItem item;
+			pff_item item;
 			if (libpff_message_get_attachment(_messageHandle, i, &item, &err) != 1)
 			{
 				log_entry();
@@ -300,13 +267,13 @@ class Message
 	}
 
   private:
-	pffItem _messageHandle;
+	pff_item _messageHandle;
 };
 
 class Folder
 {
   public:
-	explicit Folder(pffItem&& folderHandle)
+	explicit Folder(pff_item&& folderHandle)
 		: _folderHandle(std::move(folderHandle))
 	{
 		log_scope();
@@ -352,7 +319,7 @@ class Folder
 	}
 
   private:
-	pffItem _folderHandle;
+	pff_item _folderHandle;
 };
 
 namespace
@@ -422,7 +389,14 @@ void pimpl_impl<PSTParser>::parse_internal(const Folder& root, int deep, unsigne
         continue;
       }
       emit_message(mail::MailBody{});
-      emit_message_back(data_source{*html_text, mime_type { "text/html" }, confidence::very_high});
+      try
+      {
+        emit_message_back(data_source{*html_text, mime_type { "text/html" }, confidence::very_high});
+      }
+      catch (const std::exception&)
+      {
+        emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process mail body")));
+      }
       ++mail_counter;
       emit_message(mail::CloseMailBody{});
     }
@@ -437,7 +411,14 @@ void pimpl_impl<PSTParser>::parse_internal(const Folder& root, int deep, unsigne
       {
         continue;
       }
-      emit_message_back(data_source{std::string((const char*)attachment.m_raw_data.get(), attachment.m_size), extension});
+      try
+      {
+        emit_message_back(data_source{std::string((const char*)attachment.m_raw_data.get(), attachment.m_size), extension});
+      }
+      catch (const std::exception&)
+      {
+        emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process attachment", attachment.m_name)));
+      }
       emit_message(mail::CloseAttachment{});
     }
 	emit_message(mail::CloseMail{});
@@ -507,36 +488,24 @@ void libbfio_stream_initialize(libbfio_handle_t** handle, std::shared_ptr<std::i
 void pimpl_impl<PSTParser>::parse(std::shared_ptr<std::istream> stream) const
 {
 	log_scope();
-	libpff_file_t* file = nullptr;
-	pffError error{nullptr};
+	bfio_handle handle;
+	bfio_error bfio_err;
+
+	libbfio_stream_initialize(&handle, stream);
+	throw_if(libbfio_handle_open(handle, LIBBFIO_OPEN_READ, &bfio_err) != 1, "libbfio_handle_open failed");
+
+	pff_file file;
+	pff_error error{nullptr};
 	throw_if (libpff_file_initialize(&file, &error) != 1, "libpff_file_initialize failed");
+    throw_if (libpff_file_open_file_io_handle(file, handle, LIBBFIO_OPEN_READ, &error) != 1, "libpff_file_open_file_io_handle failed");
 
-  libbfio_handle_t* handle = nullptr;
-    libbfio_error_t* bfio_error = nullptr;
-    libbfio_stream_initialize(&handle, stream);
-    libbfio_handle_open(handle, LIBBFIO_OPEN_READ_WRITE_TRUNCATE, &bfio_error);
-    libpff_file_open_file_io_handle(file, handle, LIBBFIO_OPEN_READ, &error);
-
-	pffItem root = NULL;
-	libpff_file_get_root_folder(file, &root, &error);
+	pff_item root = nullptr;
+	throw_if (libpff_file_get_root_folder(file, &root, &error) != 1, "libpff_file_get_root_folder failed");
 	Folder root_folder(std::move(root));
   unsigned int mail_counter = 0;
 	emit_message(document::Document{.metadata = []() { return attributes::Metadata{}; }});
   parse_internal(root_folder, 0, mail_counter);
 	emit_message(document::CloseDocument{});
-
-  if (file)
-  {
-    libpff_file_close(file, &error);
-    libpff_file_free(&file, &error);
-  }
-  if (handle)
-  {
-    libbfio_handle_close(handle, &bfio_error);
-    libbfio_handle_free(&handle, &bfio_error);
-    handle = nullptr;
-  }
-  libbfio_error_free(&bfio_error);
 }
 
 PSTParser::PSTParser() = default;
@@ -558,8 +527,12 @@ continuation PSTParser::operator()(message_ptr msg, const message_callbacks& emi
     try
     {
         std::shared_ptr<std::istream> stream = data.istream();
-        scoped::stack_push<context> context_guard{impl().m_context_stack, context{emit_message}};
+        message_counters counters;
+        auto counting_callbacks = make_counted_message_callbacks(emit_message, counters);
+        scoped::stack_push<context> context_guard{impl().m_context_stack, context{counting_callbacks}};
         impl().parse(stream);
+        if (counters.all_failed())
+            throw make_error("No items were successfully processed", errors::uninterpretable_data{});
     }
     catch (const std::exception& e)
     {

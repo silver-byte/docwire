@@ -17,42 +17,38 @@
 #include "log_scope.h"
 #include "make_error.h"
 #include "serialization_message.h" // IWYU pragma: keep
-#include "xml_stream.h"
+#include "xml_children.h"
 
 namespace docwire
 {
 
 namespace
 {
-
-void parseXmlData(const message_callbacks& emit_message, XmlStream& xml_stream)
+template<safety_policy safety_level>
+void parseXmlData(const message_callbacks& emit_message, xml::children_view<safety_level> view)
 {
-	log_scope();
-	while (xml_stream)
+	log::scope _{};
+	for (auto node: view)
 	{
-		std::string tag_name = xml_stream.name();
-		std::string full_tag_name = xml_stream.fullName();
+		std::string_view tag_name = node.name();
+		std::string_view full_tag_name = node.full_name();
 		if (tag_name == "#text")
 		{
-			std::string text = xml_stream.content();
+			std::string_view text = node.content();
 			if (!text.empty())
-				emit_message(document::Text{ text });
+				emit_message(document::Text{ std::string{text} });
 		}
 		else if (tag_name != "style" && full_tag_name != "o:DocumentProperties" &&
 			full_tag_name != "o:CustomDocumentProperties" && full_tag_name != "w:binData")
 		{
 			if (full_tag_name == "w:p")
 				emit_message(document::Paragraph{});
-			xml_stream.levelDown();
-			if (xml_stream)
-				parseXmlData(emit_message, xml_stream);
-			xml_stream.levelUp();
+			parseXmlData(emit_message, children(node));
 			if (full_tag_name == "w:p")
 				emit_message(document::CloseParagraph{});
 			else if (full_tag_name == "w:tab")
 				emit_message(document::Text{"\t"});
 		}
-		xml_stream.next();
 	}
 }
 
@@ -64,9 +60,10 @@ const std::vector<mime_type> supported_mime_types =
 
 } // anonymous namespace
 
-continuation XMLParser::operator()(message_ptr msg, const message_callbacks& emit_message)
+template <safety_policy safety_level>
+continuation XMLParser<safety_level>::operator()(message_ptr msg, const message_callbacks& emit_message)
 {
-	log_scope(msg);
+	log::scope _{ "msg"_v = msg };
 
 	if (!msg->is<data_source>())
 		return emit_message(std::move(msg));
@@ -81,9 +78,8 @@ continuation XMLParser::operator()(message_ptr msg, const message_callbacks& emi
 	try
 	{
 		emit_message(document::Document{});
-		std::string xml_content = data.string();
-		XmlStream xml_stream(xml_content);
-		parseXmlData(emit_message, xml_stream);
+		xml::reader<safety_level> reader(data.string_view()); // Correctly uses the non-owning constructor
+		parseXmlData(emit_message, children(reader));
 		emit_message(document::CloseDocument{});
 	}
 	catch (const std::exception& e)
@@ -92,5 +88,8 @@ continuation XMLParser::operator()(message_ptr msg, const message_callbacks& emi
 	}
 	return continuation::proceed;
 }
+
+template class DOCWIRE_XML_EXPORT XMLParser<strict>;
+template class DOCWIRE_XML_EXPORT XMLParser<relaxed>;
 
 } // namespace docwire

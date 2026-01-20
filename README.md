@@ -204,6 +204,10 @@ By focusing on these R&D goals, DocWire SDK aims to solve significant problems f
 - **Fast and accurate file format detection**: Leveraging file signatures, file name extensions, content analysis, and MIME type recognition, the DocWire SDK automatically detects the format of any file. This ensures that the appropriate parser is selected for processing. With its ability to identify various formats, DocWire SDK serves as a versatile tool for numerous file processing tasks. For more information, see the following functions and classes: [content_type::detector](https://docwire.readthedocs.io/en/latest/classdocwire_1_1content__type_1_1detector.html) and [content_type::detect](https://docwire.readthedocs.io/en/latest/namespacedocwire_1_1content__type.html#ab8fcce329158e74aed1c402df93fa4e4). [You can find example how to perform file type detection (with or without document processing) here](https://docwire.readthedocs.io/en/latest/file_type_determination_8cpp-example.html).
 Additionally, the SDK provides functionality to convert a MIME type back to a file extension via `content_type::by_file_extension::to_extension`, which can be useful in scenarios where a file name is needed.
 
+- **Modern C++20 XML Parsing**: A new, expressive, and safe API for parsing XML documents. It features a single-pass, forward-only reader and utilizes C++20 ranges and views for efficient and elegant node filtering and manipulation. [You can find example how to parse XML documents here](https://docwire.readthedocs.io/en/latest/xml_parsing_example_8cpp-example.html).
+
+- **Configurable Safety Policies**: The SDK introduces a general concept of safety policies (`strict` vs. `relaxed`) to allow developers to choose between robust error-checking and maximum performance. In `strict` mode, operations are checked for validity (e.g., dereferencing null pointers, out-of-bounds access) and throw exceptions on violation. In `relaxed` mode, these checks are omitted for zero-overhead performance. This feature is currently available for XML-based parsers and will be expanded to other components.
+
 - **Build-in powerful flan-t5-large model**: This state-of-the-art transformer-based model is designed for a wide range of natural language processing tasks, including text translation, question answering, summarization, text generation, and more. It has been trained on a diverse range of data sources and can handle complex linguistic phenomena such as word order, syntax, and semantics. The model's versatility and ability to perform multiple tasks make it a valuable addition to the DocWire SDK, allowing developers to leverage its capabilities for a variety of NLP tasks within their applications. **The build-in model is optimized to run with descent speed on lower-end desktops and mobile devices without GPU acceleration and consuming less than 1 GB of memory**
 
 - **Build-in powerful multilingual-e5-small model**: This powerful and efficient multilingual text embedding model is designed to generate high-quality vector representations (embeddings) for text in over 100 languages. These embeddings are crucial for a wide range of NLP tasks, including semantic search, retrieval-augmented generation (RAG), text clustering, and similarity comparison. The `multilingual-e5-small` model is optimized for performance, making it suitable for applications where both speed and accuracy are important.
@@ -515,6 +519,41 @@ std::filesystem::path("1.pst") | content_type::detector{} | mail_parser{} | offi
   std::cout;
 ```
 [Full example](https://docwire.readthedocs.io/en/latest/join_transformers_8cpp-example.html)
+
+Parse XML using modern C++20 API:
+
+```cpp
+xml::reader reader(xml_data); // You can use xml::reader<relaxed> instead for maximum speed (skips safety checks)
+
+// Filter nodes using C++20 views
+auto products = xml::children(xml::root_element(reader)) 
+              | std::views::filter([](auto n) { return n.name() == "product"; });
+
+for (auto product_node : products)
+{
+    // Iterate over attributes
+    for (auto attr : xml::attributes(product_node))
+    {
+        if (attr.name() == "id")
+        {
+             non_negative<int> id = convert::to<int>(attr);
+        }
+    }
+
+    // Retrieve attributes with automatic type conversion
+    non_negative<int> id = *xml::attribute_value<int>(product_node, "id");
+    // attribute_value() returns checked<std::optional<T>>. Dereferencing (*) throws if the attribute is missing (preventing undefined behavior), unless xml::reader<relaxed> is used
+    auto children = xml::children(product_node);
+    ...
+    // Find node using range algorithm
+    auto price_node = std::ranges::find_if(children, [](auto n) { return n.name() == "price"; });
+
+    // Convert node content to double
+    double price = convert::to<double>(*price_node);
+    ...
+}
+```
+[Full example](https://docwire.readthedocs.io/en/latest/xml_parsing_example_8cpp-example.html)
 
 <a name="awards"></a>
 ## Awards

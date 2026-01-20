@@ -30,11 +30,32 @@
 namespace docwire
 {
 
+/**
+ * @brief A composite parser handling various office document formats.
+ * @tparam safety_level The safety policy to use.
+ */
+template <safety_policy safety_level = default_safety_level>
 class office_formats_parser : public ParsingChain
 {
     public:
+        /**
+         * @brief Constructs the composite parser with a predefined chain of format parsers.
+         */
         office_formats_parser()
-            : ParsingChain{HTMLParser{} | DOCParser{} | PDFParser{} | XLSParser{} | XLSBParser{} | IWorkParser{} | PPTParser{} | RTFParser{} | ODFOOXMLParser{} | ODFXMLParser{} | XMLParser{} | TXTParser{}}
+            : ParsingChain{
+                HTMLParser{} |
+                DOCParser{} |
+                PDFParser{} |
+                XLSParser{} |
+                XLSBParser{} |
+                IWorkParser{} |
+                PPTParser{} |
+                RTFParser{} |
+                ODFOOXMLParser<safety_level>{} |
+                ODFXMLParser<safety_level>{} |
+                XMLParser<safety_level>{} |
+                TXTParser{}
+            }
         {}
 };
 

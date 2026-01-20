@@ -96,6 +96,28 @@ std::string data_source::string(std::optional<length_limit> limit) const
 		}, m_source);
 }
 
+std::string_view data_source::string_view(std::optional<length_limit> limit) const
+{
+	return std::visit(
+		overloaded {
+			[this, limit](const std::string& source)
+			{
+				return std::string_view{source}.substr(0, limit ? limit->v : std::string_view::npos);
+			},
+			[this, limit](const std::string_view& source)
+			{
+				return source.substr(0, limit ? limit->v : std::string_view::npos);
+			},
+			[this, limit](const auto& source)
+			{
+				// For all other types (path, stream, span<byte>, vector<byte>),
+				// we rely on the span() method which handles caching.
+				std::span<const std::byte> data_span = span(limit);
+				return std::string_view{reinterpret_cast<const char*>(data_span.data()), data_span.size()};
+			}
+		}, m_source);
+}
+
 std::shared_ptr<std::istream> data_source::istream() const
 {
 	return std::make_shared<imemorystream>(span());

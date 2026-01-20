@@ -35,11 +35,6 @@ DOCWIRE_CORE_EXPORT std::string formatNumberedList(std::vector<std::string>& mli
 
 DOCWIRE_CORE_EXPORT std::string ustring_to_string(const UString& s);
 
-/**
-	Parses date and time in %Y-%m-%dT%H:%M:%S or %Y%m%d;%H%M%S format
-**/
-DOCWIRE_CORE_EXPORT bool string_to_date(const std::string& s, tm& date);
-
 DOCWIRE_CORE_EXPORT UString utf8_to_ustring(const std::string& src);
 
 DOCWIRE_CORE_EXPORT std::string unichar_to_utf8(unsigned int unichar);
@@ -65,8 +60,6 @@ inline bool utf16_unichar_has_4_bytes(unsigned int ch)
 {
 	return (ch & 0xFC00) == 0xD800;
 }
-
-DOCWIRE_CORE_EXPORT int str_to_int(const std::string& s);
 
 DOCWIRE_CORE_EXPORT bool is_encrypted_with_ms_offcrypto(const data_source& data);
 

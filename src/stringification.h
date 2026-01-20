@@ -16,6 +16,7 @@
 #include "concepts_stream.h"
 #include "concepts_string.h"
 #include "diagnostic_message.h"
+#include "named.h"
 #include "serialization_base.h"
 #include <string>
 #include <sstream>
@@ -105,6 +106,18 @@ struct stringifier<std::pair<T1, T2>>
 	{
 		return stringify(pair.first) + ": " + stringify(pair.second);
 	}
+};
+
+/**
+ * @brief Specialization for `docwire::named::value`, providing a "name: value" string representation.
+ */
+template <typename T>
+struct stringifier<named::value<T>>
+{
+    std::string operator()(const named::value<T>& nv) const
+    {
+        return stringify(nv.name) + ": " + stringify(nv.value);
+    }
 };
 
 template <strong_type_alias T>

@@ -23,6 +23,7 @@
 #include "content_type_odf_flat.h"
 #include "content_type_outlook.h"
 #include "content_type_xlsb.h"
+#include "convert.h"
 #include "cosine_similarity.h"
 #include "archives_parser.h"
 #include "detect_sentiment.h"
@@ -51,6 +52,7 @@
 #include "transformer_func.h"
 #include "translate_to.h"
 #include "type_name.h"
+#include "xml.h"
 // IWYU pragma: end_exports
 
 /**
@@ -163,6 +165,11 @@
 /**
  * @example join_transformers.cpp
  * This example demonstrates how to join multiple transformers to create a more complex filter.
+*/
+
+/**
+ * @example xml_parsing_example.cpp
+ * This example demonstrates how to parse XML documents using the DocWire SDK modern C++ API.
 */
 
 /**

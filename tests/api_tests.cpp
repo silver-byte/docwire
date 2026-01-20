@@ -24,6 +24,7 @@
 #include "content_type_odf_flat.h"
 #include "content_type_outlook.h"
 #include "content_type_xlsb.h"
+#include "convert_chrono.h" // IWYU pragma: keep
 #include "data_source.h"
 #include "diagnostic_message.h"
 #include "ensure.h"
@@ -48,6 +49,8 @@
 #include "meta_data_exporter.h"
 #include "nested_exception.h"
 #include "../src/standard_filter.h"
+#include "not_null.h"
+#include "named.h"
 #include <optional>
 #include <algorithm>
 #include "ocr_parser.h"
@@ -157,7 +160,7 @@ std::vector<std::string> get_misc_test_files_list() {
         "diacritical_marks-pol.png", "paragraphs-eng.png",
         "multilang-chi_sim-fra-deu-eng.png", "multilang-chi_tra-rus-jpn.png",
         "multilang-spa-lat-grc.png", "multilang-hin-san-swa-kor-eng.png",
-        "embedded_images.pdf"
+        "embedded_images.pdf", "embedded_images.html"
     };
 }
 
@@ -2269,6 +2272,14 @@ TEST(base64, encode)
     ASSERT_EQ(encoded, "dGVzdA==");
 }
 
+TEST(base64, decode)
+{
+    const std::string input_str { "dGVzdA==" };
+    std::vector<std::byte> decoded = base64::decode(input_str);
+    std::string decoded_str { reinterpret_cast<char*>(decoded.data()), decoded.size() };
+    ASSERT_EQ(decoded_str, "test");
+}
+
 TEST(tuple_utils, subrange)
 {
     static_assert(std::is_same_v<
@@ -2667,6 +2678,17 @@ TEST(tokenizer, multilingual_e5)
     }
 }
 
+TEST(Convert, Chrono)
+{
+    using namespace docwire::serialization;
+
+    // Test std::chrono::sys_seconds
+    using namespace std::chrono;
+    auto tp = sys_days{year{2024}/6/15} + hours{10} + minutes{30};
+    std::string str_time = convert::to<std::string>(std::chrono::sys_seconds{tp});
+    EXPECT_EQ(str_time, "2024-06-15 10:30:00");
+}
+
 TEST(Serialization, PureSerialization)
 {
     using namespace docwire::serialization;
@@ -2790,22 +2812,6 @@ TEST(Serialization, StdTypes)
     value v_exc = full(std::runtime_error("An error occurred"));
     ASSERT_TRUE(std::holds_alternative<object>(v_exc));
     EXPECT_EQ(std::get<std::string>(std::get<object>(v_exc).v.at("what")), "An error occurred");
-}
-
-TEST(Serialization, Time)
-{
-    using namespace docwire::serialization;
-
-    // Test std::tm
-    struct tm test_time = {};
-    test_time.tm_year = 2024 - 1900; // years since 1900
-    test_time.tm_mon = 5;            // months since January [0-11]
-    test_time.tm_mday = 15;
-    test_time.tm_hour = 10;
-    test_time.tm_min = 30;
-    value v_time = full(test_time);
-    ASSERT_TRUE(std::holds_alternative<std::string>(v_time));
-    EXPECT_EQ(std::get<std::string>(v_time), "2024-06-15 10:30:00");
 }
 
 TEST(Serialization, TypedSummaryPrimitives)
@@ -2994,6 +3000,80 @@ TEST(Stringification, StrongTypeAlias)
     EXPECT_EQ(stringify(my_str), "hello");
 }
 
+TEST(Named, StructuredBinding)
+{
+    auto v = "test_name"_v = 123;
+    auto [name, value] = v;
+    ASSERT_EQ(name, "test_name");
+    ASSERT_EQ(value, 123);
+
+    static_assert(std::is_same_v<decltype(name), std::string_view>);
+    static_assert(std::is_same_v<decltype(value), int>);
+}
+
+TEST(Named, StructuredBindingRef)
+{
+    auto v = "test_name"_v = 123;
+    auto& [name, value] = v;
+    ASSERT_EQ(name, "test_name");
+    ASSERT_EQ(value, 123);
+
+    value = 456;
+    ASSERT_EQ(v.value, 456);
+}
+
+TEST(Named, StructuredBindingMove)
+{
+    auto v = "test_name"_v = std::string("test_value");
+    auto [name, value] = std::move(v);
+    ASSERT_EQ(name, "test_name");
+    ASSERT_EQ(value, "test_value");
+}
+
+TEST(NotNull, ConstructionAndAccess)
+{
+    int value = 42;
+    not_null<int*> ptr(&value);
+    EXPECT_EQ(*ptr, 42);
+    *ptr = 43;
+    EXPECT_EQ(value, 43);
+
+    struct S { int x; };
+    S s{10};
+    not_null<S*> s_ptr(&s);
+    EXPECT_EQ(s_ptr->x, 10);
+    s_ptr->x = 11;
+    EXPECT_EQ(s.x, 11);
+}
+
+TEST(NotNull, SmartPointers)
+{
+    auto sp = std::make_shared<int>(100);
+    not_null<std::shared_ptr<int>> nn_sp(sp);
+    EXPECT_EQ(*nn_sp, 100);
+    EXPECT_EQ(nn_sp.get(), sp.get());
+
+    auto up = std::make_unique<int>(200);
+    not_null<std::unique_ptr<int>> nn_up(std::move(up));
+    EXPECT_EQ(*nn_up, 200);
+}
+
+TEST(NotNull, ThrowsOnNull)
+{
+    int* null_ptr = nullptr;
+    EXPECT_THROW((not_null<int*, strict>(null_ptr)), docwire::errors::base);
+
+    std::shared_ptr<int> null_sp;
+    EXPECT_THROW((not_null<std::shared_ptr<int>, strict>(null_sp)), docwire::errors::base);
+}
+
+TEST(NotNull, AssumeNotNull)
+{
+    int value = 5;
+    auto nn = assume_not_null(&value);
+    EXPECT_EQ(*nn, 5);
+}
+
 int main(int argc, char* argv[])
 {
     if (environment::get("DOCWIRE_TESTS_CONSOLE_LOGGING").value_or("0") == "1")
@@ -3144,3 +3224,211 @@ TEST(EnsureDeathTest, MisuseDetection)
         "ensure\\(\\) was called without a comparison operator");
 }
 #endif
+
+// Helper for direct parser testing
+template <typename Parser>
+void TestParserFailures(const std::string& filename,
+                          std::function<void(message_ptr)> back_inspector,
+                          std::function<void(message_ptr)> forward_inspector)
+{
+    data_source ds{std::filesystem::path{filename}};
+    // Run detector to populate mime types
+    content_type::detect(ds);
+
+    Parser parser;
+    parser(std::make_shared<message<data_source>>(std::move(ds)), {
+        [&](message_ptr msg) {
+            if (forward_inspector) forward_inspector(msg);
+            return continuation::proceed;
+        },
+        [&](message_ptr msg) {
+            if (back_inspector) back_inspector(msg);
+            return continuation::proceed;
+        }
+    });
+}
+
+TEST(PartialAndTotalFailures, Zip_Partial)
+{
+    int count = 0;
+    bool error_received = false;
+    TestParserFailures<archives_parser>("test.zip",
+        [&](message_ptr msg) {
+            if (msg->is<data_source>()) {
+                count++;
+                if (count == 1) throw std::runtime_error("Simulated failure");
+            }
+        },
+        [&](message_ptr msg) {
+            if (msg->is<std::exception_ptr>()) error_received = true;
+        }
+    );
+    // Should not throw, meaning resilience worked.
+    EXPECT_GT(count, 1);
+    EXPECT_TRUE(error_received);
+}
+
+TEST(PartialAndTotalFailures, Zip_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<archives_parser>("test.zip",
+            [](message_ptr msg) {
+                if (msg->is<data_source>()) throw std::runtime_error("Simulated failure");
+            },
+            nullptr
+        );
+    }, std::exception);
+}
+
+TEST(PartialAndTotalFailures, EML_Partial)
+{
+    int count = 0;
+    bool body_received = false;
+    bool error_received = false;
+    TestParserFailures<EMLParser>("fourth.eml",
+        [&](message_ptr msg) {
+            if (msg->is<data_source>()) {
+                count++;
+                // fourth.eml has 1 attachment (data_source) and body (document::Text)
+                if (count == 1) throw std::runtime_error("Simulated attachment failure");
+            }
+        },
+        [&](message_ptr msg) {
+            if (msg->is<document::Text>()) body_received = true;
+            if (msg->is<std::exception_ptr>()) error_received = true;
+        }
+    );
+    EXPECT_TRUE(body_received);
+    EXPECT_TRUE(error_received);
+    EXPECT_EQ(count, 1);
+}
+
+TEST(PartialAndTotalFailures, EML_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<EMLParser>("fourth.eml",
+            [](message_ptr msg) {
+                if (msg->is<data_source>()) throw std::runtime_error("Simulated failure");
+            },
+            [](message_ptr msg) {
+                if (msg->is<document::Text>()) throw std::runtime_error("Simulated failure");
+            }
+        );
+    }, std::exception);
+}
+
+TEST(PartialAndTotalFailures, PST_Partial)
+{
+    int count = 0;
+    bool error_received = false;
+    TestParserFailures<PSTParser>("1.pst",
+        [&](message_ptr msg) {
+            if (msg->is<data_source>()) {
+                count++;
+                if (count == 1) throw std::runtime_error("Simulated failure");
+            }
+        },
+        [&](message_ptr msg) {
+            if (msg->is<std::exception_ptr>()) error_received = true;
+        }
+    );
+    // Should not throw, meaning resilience worked.
+    EXPECT_GT(count, 1);
+    EXPECT_TRUE(error_received);
+}
+
+TEST(PartialAndTotalFailures, PST_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<PSTParser>("1.pst",
+            [](message_ptr msg) {
+                if (msg->is<data_source>()) throw std::runtime_error("Simulated failure");
+            },
+            [](message_ptr msg) {
+                if (!msg->is<document::Document>() && !msg->is<document::CloseDocument>())
+                    throw std::runtime_error("Simulated failure");
+            }
+        );
+    }, std::exception);
+}
+
+TEST(PartialAndTotalFailures, HTML_Partial)
+{
+    int count = 0;
+    std::string text_output;
+    bool error_received = false;
+    TestParserFailures<HTMLParser>("embedded_images.html",
+        // back inspector
+        [&](message_ptr msg) {
+            if (msg->is<document::Image>()) {
+                count++;
+                if (count == 1) throw std::runtime_error("Simulated image failure");
+            }
+        },
+        // forward inspector
+        [&](message_ptr msg) {
+            if (msg->is<document::Text>()) {
+                text_output += msg->get<document::Text>().text;
+            } else if (msg->is<std::exception_ptr>()) {
+                error_received = true;
+            }
+        }
+    );
+    EXPECT_THAT(text_output, testing::HasSubstr("and the second image:"));
+    EXPECT_TRUE(error_received);
+    EXPECT_GT(count, 1);
+}
+
+TEST(PartialAndTotalFailures, HTML_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<HTMLParser>("embedded_images.html",
+            [](message_ptr msg) {
+                throw std::runtime_error("Simulated image failure");
+            },
+            [](message_ptr msg) {
+                if (!msg->is<document::Document>() && !msg->is<document::CloseDocument>())
+                    throw std::runtime_error("Simulated text failure");
+            }
+        );
+    }, std::exception);
+}
+
+TEST(PartialAndTotalFailures, PDF_Partial)
+{
+    int count = 0;
+    std::string text_output;
+    bool error_received = false;
+    TestParserFailures<PDFParser>("embedded_images.pdf",
+        [&](message_ptr msg) {
+            if (msg->is<document::Image>()) {
+                count++;
+                if (count == 1) throw std::runtime_error("Simulated image failure");
+            }
+        },
+        [&](message_ptr msg) {
+            if (msg->is<document::Text>()) {
+                text_output += msg->get<document::Text>().text;
+            } else if (msg->is<std::exception_ptr>()) {
+                error_received = true;
+            }
+        }
+    );
+    EXPECT_THAT(text_output, testing::HasSubstr("and the second image:"));
+    EXPECT_TRUE(error_received);
+    EXPECT_GT(count, 1);
+}
+
+TEST(PartialAndTotalFailures, PDF_Total)
+{
+    EXPECT_THROW({
+        TestParserFailures<PDFParser>("embedded_images.pdf",
+            [](message_ptr msg) {
+                if (msg->is<document::Image>()) throw std::runtime_error("Simulated image failure");
+            },
+            [](message_ptr msg) {
+                if (msg->is<document::Text>()) throw std::runtime_error("Simulated text failure");
+            }
+        );
+    }, std::exception);
+}

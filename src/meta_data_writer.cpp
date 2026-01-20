@@ -13,8 +13,7 @@
 
 #include "document_elements.h"
 #include "meta_data_writer.h"
-#include "serialization_time.h" // IWYU pragma: keep
-#include "stringification.h"
+#include "convert_chrono.h" // IWYU pragma: keep
 
 namespace docwire
 {
@@ -33,7 +32,7 @@ write_meta_data(const attributes::Metadata& metadata)
   }
   if (metadata.creation_date)
   {
-    text += "Creation time: " + stringify(*metadata.creation_date) + "\n";
+    text += "Creation time: " + convert::to<std::string>(*metadata.creation_date) + "\n";
   }
   else
   {
@@ -49,7 +48,7 @@ write_meta_data(const attributes::Metadata& metadata)
   }
   if (metadata.last_modification_date)
   {
-      text += "Last modification time: " + stringify(*metadata.last_modification_date) + "\n";
+    text += "Last modification time: " + convert::to<std::string>(*metadata.last_modification_date) + "\n";
   }
   else
   {

@@ -11,6 +11,8 @@
 
 #include "rtf_parser.h"
 
+#include "convert_chrono.h" // IWYU pragma: keep
+#include "convert_numeric.h" // IWYU pragma: keep
 #include "document_elements.h"
 #include "data_stream.h"
 #include "data_source.h"
@@ -20,15 +22,12 @@
 #include <map>
 #include "misc.h"
 #include <mutex>
-#include <sstream>
 #include <stack>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "serialization_data_source.h" // IWYU pragma: keep
 #include "serialization_enum.h" // IWYU pragma: keep
-#include "serialization_time.h" // IWYU pragma: keep
-#include "stringification.h"
 #include <time.h>
 #include "throw_if.h"
 #include "wv2/src/textconverter.h"
@@ -200,7 +199,7 @@ struct RTFParserState
 	long int last_font_ref_num;
 	std::map<long int, std::string> font_table;
 	std::string author_of_next_annotation;
-	tm annotation_time;
+	std::chrono::sys_seconds annotation_time;
 	UString annotation_text;
 	UString fldinst_text;
 	UString fldrslt_text;
@@ -302,19 +301,23 @@ std::string win_charset_to_encoding(long int win_charset)
 	return codepage_to_encoding(codepage);
 }
 
-void parse_dttm_time(int dttm, tm& tm)
+std::chrono::sys_seconds parse_dttm_time(int dttm)
 {
 	log_scope(dttm);
-	tm.tm_sec = 0;
-	tm.tm_min = dttm & 0x0000003F;
+	int min = dttm & 0x0000003F;
 	dttm >>= 6;
-	tm.tm_hour = dttm & 0x0000001F;
+	int hour = dttm & 0x0000001F;
 	dttm >>= 5;
-	tm.tm_mday = dttm & 0x0000001F;
+	int day = dttm & 0x0000001F;
 	dttm >>= 5;
-	tm.tm_mon = (dttm & 0x0000000F) - 1;
+	int mon = dttm & 0x0000000F;
 	dttm >>= 4;
-	tm.tm_year = dttm & 0x000001FF;
+	int year = 1900 + (dttm & 0x000001FF);
+
+	using namespace std::chrono;
+	year_month_day ymd{std::chrono::year{year}, std::chrono::month{static_cast<unsigned>(mon)}, std::chrono::day{static_cast<unsigned>(day)}};
+	if (!ymd.ok()) return {};
+	return sys_days{ymd} + hours{hour} + minutes{min};
 }
 
 void execCommand(DataStream& data_stream, UString& text, int& skip, RTFParserState& state, RTFCommand cmd, long int arg,
@@ -546,7 +549,7 @@ void execCommand(DataStream& data_stream, UString& text, int& skip, RTFParserSta
 				s += ch;
 			if (!data_stream.eof())
 				data_stream.unGetc(ch);
-			parse_dttm_time(str_to_int(s), state.annotation_time);
+			state.annotation_time = parse_dttm_time(convert::to<int>(s));
 			break;
 		}
 		case RTF_ATNAUTHOR:
@@ -628,7 +631,7 @@ void parse_rtf_content(const data_source& data, const message_callbacks& emit_me
 					destination_type destination = state.groups.top().destination;
 					state.groups.pop();
 					if (destination == destination_type::annotation && state.groups.top().destination != destination_type::annotation)
-						emit_message(document::Comment{.author = state.author_of_next_annotation, .time = stringify(state.annotation_time), .comment = ustring_to_string(state.annotation_text)});
+						emit_message(document::Comment{.author = state.author_of_next_annotation, .time = convert::to<std::string>(state.annotation_time), .comment = ustring_to_string(state.annotation_text)});
 					else if (destination == destination_type::fldinst)
 					{
 					}
@@ -712,41 +715,35 @@ void parse_rtf_content(const data_source& data, const message_callbacks& emit_me
 	}
 }
 
-bool parse_rtf_time(const std::string& s, tm& time)
+std::optional<int> get_rtf_date_component(std::string_view s, std::string_view tag)
+{
+    size_t pos = s.find(tag);
+    if (pos == std::string_view::npos) return std::nullopt;
+
+    std::string_view rest = s.substr(pos + tag.length());
+
+    // Skip optional space which might delimit the control word
+    if (!rest.empty() && rest.front() == ' ')
+        rest.remove_prefix(1);
+
+    return convert::try_to<int>(with::partial_match{rest});
+}
+
+std::optional<std::chrono::sys_seconds> parse_rtf_time(std::string_view s)
 {
 	log_scope(s);
-	time = tm();
-	size_t p2 = s.find("\\yr");
-	if (p2 != std::string::npos)
-	{
-		std::istringstream(s.substr(p2 + 3)) >> time.tm_year;
-		if (time.tm_year == 0)
-		{
-			// Sometimes field exists but date is zero.
-			// Last modification time saved by LibreOffice 3.5 when document is created is an example.
-			return false;
-		}
-		time.tm_year -= 1900;
-	}
-	p2 = s.find("\\mo");
-	if (p2 != std::string::npos)
-	{
-		std::istringstream(s.substr(p2 + 3)) >> time.tm_mon;
-		time.tm_mon--;
-	}
-	p2 = s.find("\\dy");
-	if (p2 != std::string::npos)
-		std::istringstream(s.substr(p2 + 3)) >> time.tm_mday;
-	p2 = s.find("\\hr");
-	if (p2 != std::string::npos)
-		std::istringstream(s.substr(p2 + 3)) >> time.tm_hour;
-	p2 = s.find("\\min");
-	if (p2 != std::string::npos)
-		std::istringstream(s.substr(p2 + 4)) >> time.tm_min;
-	p2 = s.find("\\sec");
-	if (p2 != std::string::npos)
-		std::istringstream(s.substr(p2 + 4)) >> time.tm_sec;
-	return true;
+	int year = get_rtf_date_component(s, "\\yr").value_or(0);
+
+	int month = get_rtf_date_component(s, "\\mo").value_or(1);
+	int day = get_rtf_date_component(s, "\\dy").value_or(1);
+	int hour = get_rtf_date_component(s, "\\hr").value_or(0);
+	int minute = get_rtf_date_component(s, "\\min").value_or(0);
+	int second = get_rtf_date_component(s, "\\sec").value_or(0);
+
+	using namespace std::chrono;
+	year_month_day ymd{std::chrono::year{year}, std::chrono::month{static_cast<unsigned>(month)}, std::chrono::day{static_cast<unsigned>(day)}};
+	if (!ymd.ok()) return std::nullopt;
+	return sys_days{ymd} + hours{hour} + minutes{minute} + seconds{second};
 }
 
 attributes::Metadata extract_rtf_metadata(const data_source& data)
@@ -776,9 +773,7 @@ attributes::Metadata extract_rtf_metadata(const data_source& data)
 		std::string s;
 		for (int i = p + 8; content[i] != '}'; i++)
 			s += content[i];
-		tm creation_date;
-		if (parse_rtf_time(s, creation_date))
-			meta.creation_date = creation_date;
+		meta.creation_date = parse_rtf_time(s);
 	}
 	p = content.find("\\revtim");
 	if (p != std::string::npos)
@@ -786,9 +781,7 @@ attributes::Metadata extract_rtf_metadata(const data_source& data)
 		std::string s;
 		for (int i = p + 7; content[i] != '}'; i++)
 			s += content[i];
-		tm last_modification_date;
-		if (parse_rtf_time(s, last_modification_date))
-			meta.last_modification_date = last_modification_date;
+		meta.last_modification_date = parse_rtf_time(s);
 	}
 	p = content.find("\\nofpages");
 	if (p != std::string::npos)
@@ -796,9 +789,7 @@ attributes::Metadata extract_rtf_metadata(const data_source& data)
 		std::string s;
 		for (int i = p + 9; content[i] != '}'; i++)
 			s += content[i];
-		int page_count;
-		std::istringstream(s) >> page_count;
-		meta.page_count = page_count;
+		meta.page_count = convert::try_to<int>(s);
 	}
 	p = content.find("\\nofwords");
 	if (p != std::string::npos)
@@ -806,9 +797,7 @@ attributes::Metadata extract_rtf_metadata(const data_source& data)
 		std::string s;
 		for (int i = p + 9; content[i] != '}'; i++)
 			s += content[i];
-		int word_count;
-		std::istringstream(s) >> word_count;
-		meta.word_count = word_count;
+		meta.word_count = convert::try_to<int>(s);
 	}
 	return meta;
 }

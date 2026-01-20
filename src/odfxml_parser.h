@@ -15,24 +15,41 @@
 #include "common_xml_document_parser.h"
 #include "odf_ooxml_export.h"
 #include "pimpl.h"
+#include "safety_policy.h"
 
 namespace docwire
 {
 
-class DOCWIRE_ODF_OOXML_EXPORT ODFXMLParser : public CommonXMLDocumentParser, public with_pimpl<ODFXMLParser>
+/**
+ * @brief A parser for flat ODF XML documents.
+ * @tparam safety_level The safety policy to use.
+ */
+template <safety_policy safety_level = default_safety_level>
+class DOCWIRE_ODF_OOXML_EXPORT ODFXMLParser : public CommonXMLDocumentParser<safety_level>, public with_pimpl<ODFXMLParser<safety_level>>
 {
 	private:
-		using with_pimpl<ODFXMLParser>::impl;
-		friend pimpl_impl<ODFXMLParser>;
+		using base_type = CommonXMLDocumentParser<safety_level>;
+		using with_pimpl<ODFXMLParser<safety_level>>::impl;
+		friend pimpl_impl<ODFXMLParser<safety_level>>;
+
+		using base_type::registerODFOOXMLCommandHandler;
+		using scoped_context_stack_push = base_type::scoped_context_stack_push;
 
 	protected:
-		CommonXMLDocumentParser::scoped_context_stack_push create_base_context_guard(const message_callbacks& emit_message)
+		auto create_base_context_guard(const message_callbacks& emit_message)
 		{
-			return CommonXMLDocumentParser::scoped_context_stack_push{*this, emit_message};
+			return scoped_context_stack_push{*this, emit_message};
 		}
 
 	public:
+		/**
+		 * @brief Default constructor.
+		 */
 		ODFXMLParser();
+		/**
+		 * @brief Processes a message in the parsing chain.
+		 * @return The continuation status.
+		 */
 		continuation operator()(message_ptr msg, const message_callbacks& emit_message) override;
 		bool is_leaf() const override { return false; }
 };

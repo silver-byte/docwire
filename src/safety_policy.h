@@ -9,23 +9,24 @@
 /*  SPDX-License-Identifier: GPL-2.0-only OR LicenseRef-DocWire-Commercial                                                                   */
 /*********************************************************************************************************************************************/
 
-#ifndef DOCWIRE_SERIALIZATION_TIME_H
-#define DOCWIRE_SERIALIZATION_TIME_H
+#ifndef DOCWIRE_SAFETY_POLICY_H
+#define DOCWIRE_SAFETY_POLICY_H
 
-#include "core_export.h"
-#include <ctime>
-#include "serialization_base.h"
-
-namespace docwire::serialization
+namespace docwire
 {
 
-template <>
-struct serializer<struct tm>
-{
-    DOCWIRE_CORE_EXPORT value full(const struct tm& t) const;
-    value typed_summary(const struct tm& t) const { return decorate_with_typeid(this->full(t), type_name::pretty<struct tm>()); }
+/**
+ * @brief Defines the safety policy for operations.
+ */
+enum class safety_policy { 
+    /// Perform runtime checks and throw exceptions on violations.
+    strict, 
+    /// Skip runtime checks for performance; undefined behavior on violations.
+    relaxed 
 };
+using enum safety_policy;
+constexpr inline safety_policy default_safety_level = strict;
 
-} // namespace docwire::serialization
+}
 
-#endif // DOCWIRE_SERIALIZATION_TIME_H
+#endif // DOCWIRE_SAFETY_POLICY_H

@@ -11,14 +11,13 @@
 
 #include "oshared.h"
 
+#include <chrono>
 #include "error_tags.h"
-#include "misc.h"
 #include "nested_exception.h"
 #include "log_entry.h"
 #include "log_scope.h"
 #include "throw_if.h"
 #include "wv2/src/utilities.h"
-#include <time.h>
 #include "thread_safe_ole_stream_reader.h"
 #include "thread_safe_ole_storage.h"
 
@@ -75,7 +74,7 @@ static S16 read_vt_i2(ThreadSafeOLEStreamReader* reader)
 	return i;
 }
 
-static tm read_vt_filetime(ThreadSafeOLEStreamReader* reader)
+static std::chrono::sys_seconds read_vt_filetime(ThreadSafeOLEStreamReader* reader)
 {
 	log_scope();
 	U16 type;
@@ -95,11 +94,18 @@ static tm read_vt_filetime(ThreadSafeOLEStreamReader* reader)
 	// Last modification time saved by LibreOffice 3.5 when document is created is an example.
 	throw_if (file_time < 864000000000LL, "Incorrect filetime value (1601-01-01).", errors::uninterpretable_data{});
 	log_entry(file_time, file_time_low, file_time_high);
-	time_t t = (time_t)(file_time / 10000000 - 11644473600LL);
-  struct tm time_buffer;
-  tm* res = thread_safe_gmtime(&t, time_buffer);
-	throw_if (res == NULL, "Incorrect time value.", errors::uninterpretable_data{});
-	return *res;
+
+    // file_time is in 100-nanosecond intervals since 1601-01-01 (Windows FILETIME epoch)
+    // The C++ system_clock epoch is typically the Unix epoch (1970-01-01).
+    // The difference is 11644473600 seconds.
+    constexpr std::chrono::seconds seconds_between_epochs(11644473600LL);
+
+    // Convert file_time to a duration from the Unix epoch.
+    using hundred_nanos = std::chrono::duration<long long, std::ratio<1, 10'000'000>>;
+    auto time_since_windows_epoch = hundred_nanos(file_time);
+    auto time_since_unix_epoch = time_since_windows_epoch - seconds_between_epochs;
+
+	return std::chrono::sys_seconds{std::chrono::duration_cast<std::chrono::seconds>(time_since_unix_epoch)};
 }
 
 void parse_oshared_summary_info(ThreadSafeOLEStorage& storage, attributes::Metadata& meta, const std::function<void(std::exception_ptr)>& non_fatal_error_handler)

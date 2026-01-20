@@ -23,12 +23,13 @@
 #include <regex>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include "base64.h"
 #include "charset_converter.h"
+#include "convert_chrono.h" // IWYU pragma: keep
 #include "data_source.h"
 #include "log_entry.h"
 #include "log_scope.h"
 #include "make_error.h"
-#include "misc.h"
 #include <mutex>
 #include "nested_exception.h"
 #include <set>
@@ -38,6 +39,7 @@
 #include "scoped_stack_push.h"
 #include "throw_if.h" 
 #include "document_elements.h"
+#include "message_counters.h"
 
 namespace docwire
 {
@@ -349,6 +351,31 @@ const std::vector<mime_type> supported_mime_types =
 	mime_type{"application/vnd.pwg-xhtml-print+xml"}
 };
 
+data_source create_image_source(const std::string& src)
+{
+	if (boost::algorithm::starts_with(src, "data:"))
+	{
+		size_t comma_pos = src.find(',');
+		throw_if(comma_pos == std::string::npos, "Invalid data URL: missing comma");
+
+		std::string meta = src.substr(5, comma_pos - 5);
+		throw_if(meta.find(";base64") == std::string::npos, "Invalid data URL: missing base64 indicator");
+
+		std::string_view base64_data = std::string_view(src).substr(comma_pos + 1);
+		std::vector<std::byte> decoded_data = base64::decode(base64_data);
+
+		throw_if(decoded_data.empty(), "Invalid data URL: empty data");
+
+		std::string mime_type_str = "application/octet-stream";
+		size_t semicolon_pos = meta.find(';');
+		if (semicolon_pos != std::string::npos && semicolon_pos > 0)
+			mime_type_str = meta.substr(0, semicolon_pos);
+
+		return data_source{std::move(decoded_data), mime_type{mime_type_str}, confidence::highest};
+	}
+	return data_source{std::filesystem::path{src}};
+}
+
 } // unnamed namespace
 
 template<>
@@ -452,18 +479,22 @@ void pimpl_impl<HTMLParser>::parse_document(const std::string& html_content_arg,
 		}
 	}
 
-	scoped::stack_push<context> context_guard{m_context_stack, context{emit_message}};
+	message_counters counters;
+	auto counting_callbacks = make_counted_message_callbacks(emit_message, counters);
+	scoped::stack_push<context> context_guard{m_context_stack, context{counting_callbacks}};
 
-	lxb_html_document_t* document = lxb_html_document_create();
+	std::unique_ptr<lxb_html_document_t, decltype([](lxb_html_document_t* doc) { lxb_html_document_destroy(doc); })> document(lxb_html_document_create());
 	throw_if(document == nullptr, "lxb_html_document_create failed");
 
-	throw_if(lxb_html_document_parse(document, (const lxb_char_t *)html_content.data(), html_content.size()) != LXB_STATUS_OK,
+	throw_if(lxb_html_document_parse(document.get(), (const lxb_char_t *)html_content.data(), html_content.size()) != LXB_STATUS_OK,
 		"Failed to parse HTML document");
 
-	fix_dom(lxb_dom_interface_node(document));
+	fix_dom(lxb_dom_interface_node(document.get()));
 
-	lxb_dom_node_t* head = lxb_dom_interface_node(lxb_html_document_head_element(document));
-	parse_css((const char*)lxb_dom_node_text_content(head, nullptr));
+	lxb_dom_node_t* head = lxb_dom_interface_node(lxb_html_document_head_element(document.get()));
+	const lxb_char_t* head_text;
+	if (head && (head_text = lxb_dom_node_text_content(head, nullptr)) && *head_text)
+		parse_css((const char*)head_text);
 
 	emit_message(document::Document
 		{
@@ -487,10 +518,11 @@ void pimpl_impl<HTMLParser>::parse_document(const std::string& html_content_arg,
 	process_node(head);
 	m_context_stack.top().in_head = false;
 
-	lxb_dom_node_t* body = lxb_dom_interface_node(lxb_html_document_body_element(document));
+	lxb_dom_node_t* body = lxb_dom_interface_node(lxb_html_document_body_element(document.get()));
     process_node(body);
 
-	lxb_html_document_destroy(document);
+	if (counters.all_failed())
+		throw make_error("No elements were successfully processed", errors::uninterpretable_data{});
 }
 
 void pimpl_impl<HTMLParser>::process_node(const lxb_dom_node_t* node)
@@ -613,7 +645,7 @@ void pimpl_impl<HTMLParser>::process_tag(const lxb_dom_node_t* node, bool is_clo
 		if (tag_id == LXB_TAG_STYLE)
 		{
 			m_context_stack.top().in_style = false;
-			if (!m_context_stack.top().in_metadata) 
+			if (!m_context_stack.top().in_metadata)
 				emit_message(document::Style{.css_text = m_context_stack.top().style_text});
 			m_context_stack.top().style_text.clear();
 		}
@@ -714,13 +746,20 @@ void pimpl_impl<HTMLParser>::process_tag(const lxb_dom_node_t* node, bool is_clo
 			const lxb_char_t* alt_attr = lxb_dom_element_get_attribute(const_cast<lxb_dom_element_t*>(element), (const lxb_char_t *)"alt", 3, nullptr);
 			if (alt_attr)
 				alt = std::string((const char*)alt_attr);
-			document::Image image
+
+			try
 			{
-				.source = data_source{std::filesystem::path{src}}, // TODO: handle data: urls
-				.alt = alt,
-				.styling = html_node_styling(node)
-			};
-			emit_message_back(std::move(image));
+				emit_message_back(document::Image
+				{
+					.source = create_image_source(src),
+					.alt = alt,
+					.styling = html_node_styling(node)
+				});
+			}
+			catch (const std::exception&)
+			{
+				emit_message(errors::make_nested_ptr(std::current_exception(), make_error("Failed to process image")));
+			}
 		}
 		else if (tag_id == LXB_TAG_TABLE)
 		{
@@ -803,8 +842,10 @@ void pimpl_impl<HTMLParser>::process_tag(const lxb_dom_node_t* node, bool is_clo
 				else if (boost::iequals(name, "created") ||
 						boost::iequals(name, "dcterms.issued"))
 				{
-					tm creation_date;
-					if (string_to_date(content, creation_date))
+					auto creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{content});
+					if (!creation_date)
+						creation_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::openoffice_legacy{content});
+					if (creation_date)
 					{
 						m_context_stack.top().meta.creation_date = creation_date;
 					}
@@ -815,8 +856,10 @@ void pimpl_impl<HTMLParser>::process_tag(const lxb_dom_node_t* node, bool is_clo
 					// Multiple changed meta tags are possible - LibreOffice 3.5 is an example
 					if (!m_context_stack.top().meta.last_modification_date)
 					{
-						tm last_modification_date;
-						if (string_to_date(content, last_modification_date))
+						auto last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::iso8601{content});
+						if (!last_modification_date)
+							last_modification_date = convert::try_to<std::chrono::sys_seconds>(with::date_format::openoffice_legacy{content});
+						if (last_modification_date)
 						{
 							m_context_stack.top().meta.last_modification_date = last_modification_date;
 						}

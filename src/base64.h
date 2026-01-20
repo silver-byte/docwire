@@ -15,11 +15,13 @@
 #include "base64_export.h"
 #include <span>
 #include <string>
+#include <vector>
 
 namespace docwire::base64
 {
 
 DOCWIRE_BASE64_EXPORT std::string encode(std::span<const std::byte> data);
+DOCWIRE_BASE64_EXPORT std::vector<std::byte> decode(std::string_view data);
 
 } // namespace docwire::base64
 
